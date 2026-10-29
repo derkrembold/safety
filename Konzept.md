@@ -82,6 +82,11 @@ Es sollen auch Studenten Zugriff bekommen, aber der Pull Request soll von mir ge
 
 Als Ticketsystem reicht GitHub Issues zusammen mit einem GitHub-Projects-Board (Kanban: To do / In Progress / Review / Done) — kein externes Tool nötig.
 
+- **Todo:** Issue angelegt, noch niemand zugewiesen bzw. noch nicht begonnen.
+- **In Progress:** Ein Branch ist angelegt, es wird aktiv daran gearbeitet, noch kein PR.
+- **Review:** PR ist offen. Codex kommentiert automatisch; offene Punkte werden vom Studenten oder vom Dozenten gelöst.
+- **Done:** PR ist gemerged, Issue ist geschlossen.
+
 - Für jede Aufgabe/jedes Feature wird zuerst ein Issue angelegt, bevor jemand mit dem Code anfängt.
 - Pro Issue gibt es einen eigenen Branch (z. B. `issue-<nr>-kurzbeschreibung`). Niemand arbeitet direkt auf `main`.
 - Pro Issue gibt es einen eigenen Pull Request, möglichst klein und auf das Issue fokussiert.
