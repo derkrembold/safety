@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import './App.css'
+import { FaultTree } from './fehlerbaum/model'
 import { exportProjectToFile, importProjectFromFile } from './project/io'
 import { createEmptyProject, type Project, type TabId } from './project/types'
 import { BddTab } from './tabs/Bdd'
@@ -17,6 +18,8 @@ function App() {
   const [project, setProject] = useState<Project>(() =>
     createEmptyProject('Neues Projekt'),
   )
+  // Außerhalb des Reiters gehalten, damit der Fehlerbaum beim Reiterwechsel erhalten bleibt.
+  const [faultTree] = useState(() => new FaultTree())
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleImportFile(event: React.ChangeEvent<HTMLInputElement>) {
@@ -63,7 +66,7 @@ function App() {
       </header>
 
       <main id="tab-content">
-        {activeTab === 'fehlerbaum' && <FehlerbaumanalyseTab />}
+        {activeTab === 'fehlerbaum' && <FehlerbaumanalyseTab tree={faultTree} />}
         {activeTab === 'zuverlaessigkeitsdiagramm' && (
           <ZuverlaessigkeitsdiagrammTab />
         )}

@@ -1,8 +1,6 @@
-export function FehlerbaumanalyseTab() {
-  return (
-    <div className="tab-panel">
-      <h2>Fehlerbaumanalyse</h2>
-      <p>Noch ohne Funktionalität (siehe Issue #2).</p>
-    </div>
-  )
+import { FehlerbaumEditor } from '../fehlerbaum/FehlerbaumEditor'
+import type { FaultTree } from '../fehlerbaum/model'
+
+export function FehlerbaumanalyseTab({ tree }: { tree: FaultTree }) {
+  return <FehlerbaumEditor tree={tree} />
 }

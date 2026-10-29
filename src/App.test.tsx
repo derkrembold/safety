@@ -7,8 +7,21 @@ describe('App tab navigation', () => {
   it('shows the Fehlerbaumanalyse tab by default', () => {
     render(<App />)
     expect(
-      screen.getByRole('heading', { name: 'Fehlerbaumanalyse' }),
+      screen.getByRole('complementary', { name: 'Verknüpfungselemente' }),
     ).toBeInTheDocument()
+  })
+
+  it('keeps the fault tree when switching tabs', async () => {
+    render(<App />)
+    await userEvent.dblClick(screen.getByText('Standardeingang'))
+    expect(screen.getByText('Eingang 1')).toBeInTheDocument()
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Binary Decision Diagram' }),
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Fehlerbaumanalyse' }),
+    )
+    expect(screen.getByText('Eingang 1')).toBeInTheDocument()
   })
 
   it('switches to the Zuverlässigkeitsdiagramm tab on click', async () => {

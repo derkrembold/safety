@@ -1,0 +1,202 @@
+.ft-editor {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+  min-height: 480px;
+  min-width: 0;
+}
+
+.ft-canvas-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ft-canvas {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+.ft-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+  touch-action: none;
+}
+
+.ft-background {
+  fill: transparent;
+}
+
+.glyph {
+  fill: var(--code-bg);
+  stroke: var(--text-h);
+  stroke-width: 2;
+}
+
+.glyph-symbol {
+  fill: var(--text-h);
+  font: 600 18px var(--sans);
+  pointer-events: none;
+}
+
+.ft-element {
+  cursor: grab;
+}
+
+.ft-element:active {
+  cursor: grabbing;
+}
+
+.ft-element.selected .glyph {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.ft-label {
+  fill: var(--text-h);
+  font: 14px var(--sans);
+  pointer-events: none;
+}
+
+.ft-connection {
+  fill: none;
+  stroke: var(--text-h);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.ft-connection.selected {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.ft-connection.pending {
+  stroke: var(--accent);
+  stroke-dasharray: 6 4;
+}
+
+.ft-connection-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  cursor: pointer;
+}
+
+.ft-stub-hit {
+  fill: transparent;
+  cursor: crosshair;
+}
+
+.ft-stub-dot {
+  fill: var(--bg);
+  stroke: var(--text-h);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.ft-stub.used .ft-stub-dot {
+  fill: var(--text-h);
+}
+
+.ft-stub:hover .ft-stub-dot,
+.ft-stub.candidate .ft-stub-dot {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+
+.ft-stub.candidate .ft-stub-dot {
+  r: 7;
+}
+
+.ft-rename {
+  position: absolute;
+  width: 140px;
+  padding: 4px 8px;
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: 14px var(--sans);
+}
+
+.ft-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--text);
+}
+
+.ft-notice {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  padding: 8px 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font-size: 14px;
+}
+
+.ft-hints {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.ft-hints kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: 12px var(--mono);
+}
+
+.ft-sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.ft-sidebar h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-h);
+}
+
+.ft-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-h);
+  font-size: 14px;
+  cursor: grab;
+}
+
+.ft-sidebar-item:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
