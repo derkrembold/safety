@@ -1,7 +1,8 @@
+import { parseProject, serializeProject } from '../core'
 import type { Project } from './types'
 
 export function exportProjectToFile(project: Project): void {
-  const blob = new Blob([JSON.stringify(project, null, 2)], {
+  const blob = new Blob([JSON.stringify(serializeProject(project), null, 2)], {
     type: 'application/json',
   })
   const url = URL.createObjectURL(blob)
@@ -12,23 +13,13 @@ export function exportProjectToFile(project: Project): void {
   URL.revokeObjectURL(url)
 }
 
-function isValidProject(value: unknown): value is Project {
-  if (typeof value !== 'object' || value === null) return false
-  const candidate = value as Record<string, unknown>
-  return (
-    candidate.version === 1 &&
-    typeof candidate.name === 'string' &&
-    typeof candidate.createdAt === 'string' &&
-    typeof candidate.modifiedAt === 'string'
-  )
-}
-
 export function importProjectFromFile(file: File): Promise<Project> {
   return file.text().then((text) => {
-    const parsed = JSON.parse(text)
-    if (!isValidProject(parsed)) {
-      throw new Error('Datei ist keine gültige Projektdatei.')
+    try {
+      return parseProject(JSON.parse(text))
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error)
+      throw new Error(`Datei ist keine gültige Projektdatei. ${detail}`)
     }
-    return parsed
   })
 }

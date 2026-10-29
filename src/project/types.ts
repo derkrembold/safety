@@ -1,19 +1,19 @@
-export type TabId = 'fehlerbaum' | 'zuverlaessigkeitsdiagramm' | 'bdd'
+/**
+ * Project types for the app layer.
+ *
+ * The model itself lives in `src/core` (issue #5): one component registry whose
+ * identities are shared by all three tabs, plus a diagram document per tab. This module
+ * is the entry point the UI imports from, so components do not reach into the core
+ * directly.
+ */
+export type {
+  ComponentDefinition,
+  ComponentId,
+  DiagramDocument,
+  NodeId,
+  Project,
+  ProjectParameters,
+  TabId,
+} from '../core'
 
-export interface Project {
-  /** Schema version, for forward-compatible loading of older project files. */
-  version: 1
-  name: string
-  createdAt: string
-  modifiedAt: string
-}
-
-export function createEmptyProject(name: string): Project {
-  const now = new Date().toISOString()
-  return {
-    version: 1,
-    name,
-    createdAt: now,
-    modifiedAt: now,
-  }
-}
+export { DEFAULT_PARAMETERS, PROJECT_VERSION, createEmptyProject } from '../core'

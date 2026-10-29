@@ -21,6 +21,16 @@ Die Software soll als Web-App im Browser laufen. Projekte werden lokal als Datei
 
 Tech-Stack (entschieden in Issue #1): React + TypeScript + Vite. Projekte werden als JSON-Datei exportiert/importiert (Schema-Version im Feld `version`, siehe `src/project/types.ts`).
 
+## Datenmodell
+
+Das gemeinsame Datenmodell (entschieden in Issue #5) liegt in `src/core` und ist frei von Framework-Abhängigkeiten; `src/project/types.ts` ist der Einstiegspunkt für die UI.
+
+- **Identität vs. Vorkommen:** Eine `ComponentId` ist die projektweite Identität einer Komponente, eine `NodeId` ein einzelnes Vorkommen in einem Diagramm. Mehrere Knoten dürfen dieselbe `ComponentId` referenzieren; Umbenennen ändert die Identität nicht.
+- **Raten nur in der Registry:** Ausfall- und Reparaturrate stehen ausschließlich in der Komponenten-Registry, niemals am Knoten. Eine Ratenänderung wirkt damit automatisch auf alle Vorkommen in allen Reitern.
+- **Vorzeichen-Konvention:** Eine Variable ist `true`, wenn die Komponente *ausgefallen* ist; ein logischer Ausdruck ist `true`, wenn das *System ausgefallen* ist (TOP-Ereignis eingetreten). Fehlerbaum und BDD (Terminal 1 = fail) bilden direkt ab, das Zuverlässigkeitsdiagramm dualisiert: Serienstruktur → ODER der Ausfälle, Parallelstruktur → UND der Ausfälle.
+- **Logik-Zwischenrepräsentation:** Die darstellungsunabhängige Logik ist ein DAG aus `var`/`and`/`or` mit Hash-Consing — eine mehrfach verwendete Komponente ist ein geteilter Knoten, kein Duplikat. Es gibt keinen `not`-Konstruktor, Ausdrücke sind dadurch konstruktionsbedingt monoton. Der in diesem Dokument geforderte Monotonie-Check wird erst beim handgebauten BDD nötig, weil man dort durch Vertauschen der Terminalausgänge einen Zweig negieren kann, ganz ohne NOT-Gatter.
+- **Missionsdauer und Prüfintervall** sind Projektparameter (`parameters`), nicht Eigenschaften einzelner Komponenten.
+
 ## Priorisierung
 
 Die Reiter werden nacheinander umgesetzt, nicht parallel. Reihenfolge (zeitlich gemeint, nicht fachlich wichtiger):

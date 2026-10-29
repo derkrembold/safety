@@ -44,4 +44,45 @@ describe('importProjectFromFile', () => {
       importProjectFromFile(new File(['not json'], 'project.safety.json')),
     ).rejects.toThrow()
   })
+
+  it('accepts a project with components and diagrams', async () => {
+    const project = await importProjectFromFile(
+      jsonFile({
+        version: 1,
+        name: 'Mit Modell',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        modifiedAt: '2026-01-01T00:00:00.000Z',
+        parameters: { missionTimeHours: 8760, testIntervalHours: 4380 },
+        components: {
+          's': { id: 's', name: 'Sensor', failureRate: 1e-5, repairRate: 0.1 },
+        },
+        diagrams: {
+          fehlerbaum: {
+            nodes: { 'n1': { id: 'n1', kind: 'basicEvent', componentRef: 's' } },
+            edges: [],
+            layout: { 'n1': { x: 0, y: 0 } },
+            provenance: { origin: 'authored', stale: false },
+          },
+        },
+      }),
+    )
+
+    expect(project.parameters.testIntervalHours).toBe(4380)
+    expect(project.components['s']?.failureRate).toBe(1e-5)
+    expect(project.diagrams.fehlerbaum?.nodes['n1']?.componentRef).toBe('s')
+  })
+
+  it('rejects a component without a usable failure rate', async () => {
+    await expect(
+      importProjectFromFile(
+        jsonFile({
+          version: 1,
+          name: 'Kaputt',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          modifiedAt: '2026-01-01T00:00:00.000Z',
+          components: { 's': { id: 's', name: 'Sensor', failureRate: 'schnell' } },
+        }),
+      ),
+    ).rejects.toThrow()
+  })
 })
