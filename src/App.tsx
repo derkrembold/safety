@@ -6,6 +6,8 @@ import { createEmptyProject, type Project, type TabId } from './project/types'
 import { BddTab } from './tabs/Bdd'
 import { FehlerbaumanalyseTab } from './tabs/Fehlerbaumanalyse'
 import { ZuverlaessigkeitsdiagrammTab } from './tabs/Zuverlaessigkeitsdiagramm'
+import { appLogger } from './debug/appLogger'
+import { DebugControls } from './debug/DebugControls'
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'fehlerbaum', label: 'Fehlerbaumanalyse' },
@@ -26,7 +28,7 @@ function App() {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
-    importProjectFromFile(file)
+    appLogger.runAction('project-imported', () => importProjectFromFile(file))
       .then(setProject)
       .catch((error: Error) => {
         alert(`Projekt konnte nicht geladen werden: ${error.message}`)
@@ -42,14 +44,19 @@ function App() {
               key={tab.id}
               type="button"
               className={tab.id === activeTab ? 'tab active' : 'tab'}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                if (tab.id !== activeTab) {
+                  appLogger.logAction(`tab-selected:${tab.id}`)
+                  setActiveTab(tab.id)
+                }
+              }}
             >
               {tab.label}
             </button>
           ))}
         </nav>
         <div id="project-actions">
-          <button type="button" onClick={() => exportProjectToFile(project)}>
+          <button type="button" onClick={() => appLogger.runAction('project-exported', () => exportProjectToFile(project))}>
             Projekt exportieren
           </button>
           <button type="button" onClick={() => fileInputRef.current?.click()}>
@@ -64,6 +71,8 @@ function App() {
           />
         </div>
       </header>
+
+      <DebugControls logger={appLogger} getProjectState={() => project} />
 
       <main id="tab-content">
         {activeTab === 'fehlerbaum' && <FehlerbaumanalyseTab tree={faultTree} />}

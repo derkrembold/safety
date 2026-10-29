@@ -65,3 +65,24 @@
 .tab-panel h2 {
   color: var(--text-h);
 }
+
+.debug-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.debug-controls button {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.debug-controls [role='status'] { margin: 0; }
