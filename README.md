@@ -22,6 +22,9 @@ npm run dev     # Dev-Server
 npm run build   # Typecheck + Produktions-Build
 ```
 
+Die interne BDD-Berechnung aus Issue #6 ist in [`docs/bdd.md`](docs/bdd.md)
+mit Schnittstellen, Modellannahmen und numerischen Grenzen beschrieben.
+
 ## Mitmachen
 
 1. Ein offenes [Issue](https://github.com/derkrembold/safety/issues) aussuchen (oder im [Project-Board](https://github.com/users/derkrembold/projects/3) nachsehen, was noch offen ist).
