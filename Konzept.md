@@ -43,6 +43,16 @@ Die Implementierung startet mit dem Fehlerbaum. Entsprechend sind die GitHub-Iss
 
 Ausnahme: Die interne BDD-Berechnungslogik (siehe "Systemwahrscheinlichkeiten allgemein") wird bereits in Phase 1 benötigt, da Zuverlässigkeit, Verfügbarkeit und PFDavg des Fehlerbaums über das BDD berechnet werden. Nur der grafische BDD-Reiter (Editor, Drag-and-Drop, Darstellung) kann bis Phase 3 warten.
 
+### Dringlichkeits-Einstufung (P1–P3)
+
+Zusätzlich zur Phasen-Reihenfolge oben vergibt Codex bei Gesamtreviews des `master`-Stands eine Dringlichkeits-Einstufung pro Issue, erkennbar am Titel-Präfix (z. B. `[P1]`):
+
+- **P1 – Hoch:** kritische, blockierende Befunde — z. B. Datenverlust oder fehlende Integration zwischen bereits gemergten Teilen. Wird vor allem anderen bearbeitet, auch vor neuen Features aus späteren Phasen.
+- **P2 – Normal:** reguläre Bugs und reguläre Feature-Arbeit.
+- **P3 – Niedrig:** optionale Verbesserungen.
+
+Diese Einstufung ist unabhängig von der Phasen-Zuordnung und kann auch bereits abgeschlossene Phasen betreffen, wenn ein Review dort Lücken findet. Beispiel: #15 (P1) deckte auf, dass der Fehlerbaum-Editor trotz abgeschlossener Issues #2 und #5 nie an das gemeinsame Projektmodell angebunden wurde — Editor-Änderungen landeten nicht im Datei-Export/-Import. Ein P1-Befund aus Phase 1 geht entsprechend vor, bevor an P2-Arbeit aus Phase 2/3 weitergearbeitet wird.
+
 ## Debugging
 
 Die App soll fortlaufend Logs erzeugen, um Fehler leichter nachvollziehbar zu machen — allerdings auf Domänen-Ebene statt als rohe Input-Events: Geloggt wird z. B., wenn ein Verknüpfungselement verbunden, eine Berechnung ausgelöst oder eine Umwandlung zwischen den Reitern durchgeführt wird — nicht jeder einzelne Mausklick mit Koordinaten oder Tastendruck. Das ist beim Debuggen aussagekräftiger und erzeugt deutlich weniger Datenvolumen.
