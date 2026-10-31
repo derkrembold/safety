@@ -111,10 +111,6 @@ export class FaultTree {
       else throw new Error(`Unbekanntes Fehlerbaum-Element: ${node.kind}`)
       tree.elements.set(node.id, element)
       tree.layout.set(node.id, diagram.layout[node.id] ?? { x: 40, y: 40 })
-      const number = Number(label.replace(`${LABEL_PREFIX[element.kind]} `, ''))
-      if (Number.isSafeInteger(number) && number >= 1) {
-        tree.nextLabelNumber[element.kind] = Math.max(tree.nextLabelNumber[element.kind], number + 1)
-      }
     }
     for (const edge of diagram.edges) {
       const result = tree.connect(edge.to, edge.from)
@@ -168,7 +164,13 @@ export class FaultTree {
 
   create(kind: ElementKind, position: Point): FaultTreeElement {
     const id = newNodeId()
-    const label = `${LABEL_PREFIX[kind]} ${this.nextLabelNumber[kind]++}`
+    // Labels are editable, so neither imported labels nor their numeric suffixes
+    // are a reliable counter. Skip every label already visible in this diagram.
+    const usedLabels = new Set(this.all().map((element) => element.label))
+    let label: string
+    do {
+      label = `${LABEL_PREFIX[kind]} ${this.nextLabelNumber[kind]++}`
+    } while (usedLabels.has(label))
     const element =
       kind === 'standardeingang'
         ? new Standardeingang(id, label)

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { asComponentId, asEdgeId, asNodeId, createEmptyProject, emptyDiagram, fromJSON, toJSON } from '../core'
-import { FaultTree, Standardeingang } from './model'
+import { FaultTree, Standardeingang, type ElementKind } from './model'
 
 function sharedProject() {
   const project = createEmptyProject('Shared')
@@ -44,6 +44,23 @@ describe('fault tree project projection', () => {
     tree.remove('a')
     expect(tree.toProject(saved).components).toEqual(project.components)
     expect(tree.toProject(saved).diagrams.fehlerbaum?.edges).toHaveLength(1)
+  })
+
+  it.each<[ElementKind, string]>([
+    ['standardeingang', 'Eingang'], ['oder', 'ODER'], ['und', 'UND'],
+  ])('avoids occupied labels for %s after renaming and importing', (kind, prefix) => {
+    const tree = new FaultTree()
+    const renamed = tree.create(kind, { x: 10, y: 20 })
+    renamed.label = 'Sensor A'
+    tree.create(kind, { x: 30, y: 40 })
+    // Even another kind may have been renamed to a default label of this kind.
+    tree.create(kind === 'und' ? 'oder' : 'und', { x: 50, y: 60 }).label = `${prefix} 1`
+    const restored = FaultTree.fromProject(fromJSON(toJSON(tree.toProject(createEmptyProject('Labels')))))
+    const added = restored.create(kind, { x: 70, y: 80 })
+    expect(added.label).toBe(`${prefix} 3`)
+    expect(restored.create(kind, { x: 90, y: 100 }).label).toBe(`${prefix} 4`)
+    expect(restored.get(renamed.id)?.label).toBe('Sensor A')
+    expect(new Set(restored.all().map((element) => element.label)).size).toBe(restored.all().length)
   })
 
   it('persists disconnected inputs and gates without requiring a valid calculation', () => {
