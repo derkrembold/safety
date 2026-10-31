@@ -11,6 +11,21 @@ const b = asComponentId('b')
 const c = asComponentId('c')
 
 describe('ROBDD construction', () => {
+  it('builds an alternating expression with compact interning references', () => {
+    const builder = createExprBuilder()
+    const inputs = Array.from({ length: 65 }, (_, i) => asComponentId(`chain-${i}`))
+    let expr = builder.var(inputs[0])
+    let expected = 0.5
+    for (let i = 1; i < inputs.length; i++) {
+      const next = builder.var(inputs[i])
+      expr = i % 2 ? builder.and([expr, next]) : builder.or([expr, next])
+      expected = i % 2 ? expected * 0.5 : expected + (1 - expected) * 0.5
+    }
+    const graph = buildBdd(expr, { variableOrder: inputs })
+    expect(bddFailureProbability(graph, new Map(inputs.map((id) => [id, 0.5])))).toBeCloseTo(expected, 14)
+    expect(graph.nodes.length).toBeLessThanOrEqual(inputs.length + 2)
+  })
+
   it('uses terminals 0 = success and 1 = failure', () => {
     const builder = createExprBuilder()
     expect(buildBdd(builder.FALSE).root).toBe(0)

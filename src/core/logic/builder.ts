@@ -15,19 +15,20 @@ import { childrenOf, isAnd, isConst, isOr } from './expr'
  *
  * Normalisation applied while building: nested connectives of the same kind are
  * flattened, duplicate children are dropped (idempotence), neutral and absorbing
- * constants are folded away, and children are sorted by their interning key so argument
+ * constants are folded away, and children are sorted by their builder-local node ID so argument
  * order does not matter. Absorption (`x AND (x OR y) = x`) is deliberately *not* applied
  * — full canonicalisation is the ROBDD's job in issue #6.
  *
- * Interning keys are JSON-encoded tuples rather than concatenated strings. Component ids
- * are arbitrary strings after an import, so a separator-joined key would let an id that
- * contains the separator collide with a different expression — and interning would then
- * hand back the wrong node, silently changing the system's logic. JSON encoding escapes
- * the parts, which makes the key injective for any id.
+ * Interning keys are JSON-encoded tuples. Variables encode their component ID once;
+ * connectives encode only sorted builder-local child IDs, never whole child keys.
+ * This keeps key storage proportional to component-ID lengths and DAG edges (with
+ * logarithmic-width node IDs), rather than exponentially escaping nested JSON strings.
+ * Structured tuples keep arbitrary imported component IDs collision-free. Child IDs and
+ * connective keys are local to this builder; they are not a portable structural hash.
  */
 export class ExprBuilder {
   private readonly interned = new Map<string, LogicExpr>()
-  private readonly keys = new WeakMap<LogicExpr, string>()
+  private readonly nodes = new WeakMap<LogicExpr, { id: number; key: string }>()
 
   /** The constant "system failed". */
   readonly TRUE: LogicExpr = this.constant(true)
@@ -53,13 +54,17 @@ export class ExprBuilder {
     return this.connective('or', children)
   }
 
-  /** The interning key of an expression built by this builder. */
+  /** The interning key, valid only within this builder (not across builders). */
   keyOf(expr: LogicExpr): string {
-    const key = this.keys.get(expr)
-    if (key === undefined) {
+    return this.nodeOf(expr).key
+  }
+
+  private nodeOf(expr: LogicExpr): { id: number; key: string } {
+    const node = this.nodes.get(expr)
+    if (node === undefined) {
       throw new Error('Expression was not built by this ExprBuilder')
     }
-    return key
+    return node
   }
 
   private connective(kind: 'and' | 'or', children: readonly LogicExpr[]): LogicExpr {
@@ -81,22 +86,22 @@ export class ExprBuilder {
       flattened.push(child)
     }
 
-    const byKey = new Map<string, LogicExpr>()
+    const byId = new Map<number, LogicExpr>()
     for (const child of flattened) {
-      byKey.set(this.keyOf(child), child)
+      byId.set(this.nodeOf(child).id, child)
     }
 
-    const sortedKeys = [...byKey.keys()].sort()
-    if (sortedKeys.length === 0) return this.constant(neutral)
+    const sortedIds = [...byId.keys()].sort((a, b) => a - b)
+    if (sortedIds.length === 0) return this.constant(neutral)
 
-    const first = sortedKeys[0]
-    if (sortedKeys.length === 1 && first !== undefined) {
-      const only = byKey.get(first)
+    const first = sortedIds[0]
+    if (sortedIds.length === 1 && first !== undefined) {
+      const only = byId.get(first)
       if (only !== undefined) return only
     }
 
-    const sorted = sortedKeys.map((key) => byKey.get(key) as LogicExpr)
-    return this.intern(JSON.stringify([kind, sortedKeys]), {
+    const sorted = sortedIds.map((key) => byId.get(key) as LogicExpr)
+    return this.intern(JSON.stringify([kind, sortedIds]), {
       kind,
       children: sorted,
     } as LogicExpr)
@@ -107,7 +112,7 @@ export class ExprBuilder {
     if (existing !== undefined) return existing
     const frozen = Object.freeze(candidate)
     this.interned.set(key, frozen)
-    this.keys.set(frozen, key)
+    this.nodes.set(frozen, { id: this.interned.size, key })
     return frozen
   }
 }
