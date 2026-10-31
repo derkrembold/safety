@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Command } from './commands'
+import { Modal } from './Modal'
 
 interface Props {
   open: boolean
@@ -30,15 +31,18 @@ export function CommandPalette({ open, commands, onClose }: Props) {
       setHighlighted(0)
     }
   }
-  const clampedHighlighted = filtered.length === 0 ? 0 : Math.min(highlighted, filtered.length - 1)
+  // Clamped on both ends: an empty result list can otherwise leave `highlighted` at -1
+  // (ArrowDown has nothing to clamp against), which would then survive a search that
+  // becomes non-empty again and point Enter at a non-existent command (Codex review,
+  // PR #29).
+  const clampedHighlighted =
+    filtered.length === 0 ? 0 : Math.max(0, Math.min(highlighted, filtered.length - 1))
 
   // Focusing the DOM input is a real external-system effect, unlike the state resets
   // above, so it stays in an effect.
   useEffect(() => {
     if (open) inputRef.current?.focus()
   }, [open])
-
-  if (!open) return null
 
   function run(command: Command | undefined) {
     if (!command) return
@@ -47,17 +51,10 @@ export function CommandPalette({ open, commands, onClose }: Props) {
   }
 
   return (
-    <div className="shell-overlay" onClick={onClose}>
+    <Modal open={open} label="Befehle" onClose={onClose} className="shell-dialog">
       <div
-        className="shell-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Befehle"
-        onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
-          if (event.key === 'Escape') {
-            onClose()
-          } else if (event.key === 'ArrowDown') {
+          if (event.key === 'ArrowDown') {
             event.preventDefault()
             setHighlighted(Math.min(clampedHighlighted + 1, filtered.length - 1))
           } else if (event.key === 'ArrowUp') {
@@ -95,6 +92,6 @@ export function CommandPalette({ open, commands, onClose }: Props) {
           ))}
         </ul>
       </div>
-    </div>
+    </Modal>
   )
 }

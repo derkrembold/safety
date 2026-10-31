@@ -78,6 +78,19 @@ describe('CommandPalette', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it('recovers from ArrowDown on an empty result list once the search clears (Codex review, PR #29)', async () => {
+    const { list, run } = commands()
+    const user = userEvent.setup()
+    render(<CommandPalette open commands={list} onClose={vi.fn()} />)
+    const search = screen.getByRole('textbox', { name: 'Befehl suchen' })
+    await user.type(search, 'xyz-nonexistent')
+    await user.keyboard('{ArrowDown}')
+    await user.clear(search)
+    expect(screen.getByRole('option', { name: 'Projekt exportieren' })).toHaveAttribute('aria-selected', 'true')
+    await user.keyboard('{Enter}')
+    expect(run).toHaveBeenCalledWith('a')
+  })
+
   it('closes without running anything on Escape or an outside click', async () => {
     const { list, run } = commands()
     const onClose = vi.fn()
