@@ -199,6 +199,16 @@ function parseRegistry(raw: Record<string, unknown>): ComponentRegistry {
   for (const [key, value] of Object.entries(raw)) {
     const component = record(value, `project.components.${key}`)
     const id = asComponentId(str(component.id, `project.components.${key}.id`))
+    // The dictionary key is the canonical id everything else references (layout, node
+    // componentRefs, ...). A mismatch here means either a renamed/duplicated id was
+    // written inconsistently, or two different keys embed the same id — both would
+    // silently merge or orphan entries if we kept the embedded id instead (issue #17).
+    if (key !== id) {
+      throw new ProjectFormatError(
+        `project.components.${key}.id is "${id}", but the dictionary key is "${key}". ` +
+          'A component\'s dictionary key must match its own id.',
+      )
+    }
     const repairRate = optNum(component.repairRate, `project.components.${key}.repairRate`)
     const note = optStr(component.note, `project.components.${key}.note`)
     registry[id] = {
@@ -222,6 +232,15 @@ function parseDiagram(raw: Record<string, unknown>, tab: TabId): DiagramDocument
   for (const [key, value] of Object.entries(rawNodes)) {
     const node = record(value, `${path}.nodes.${key}`)
     const id = asNodeId(str(node.id, `${path}.nodes.${key}.id`))
+    // See parseRegistry: the dictionary key must match the embedded id, otherwise layout
+    // entries and edge/componentRef references keyed by the dictionary key would silently
+    // detach from the node, or two keys embedding the same id would merge (issue #17).
+    if (key !== id) {
+      throw new ProjectFormatError(
+        `${path}.nodes.${key}.id is "${id}", but the dictionary key is "${key}". ` +
+          'A node\'s dictionary key must match its own id.',
+      )
+    }
     const componentRef = optStr(node.componentRef, `${path}.nodes.${key}.componentRef`)
     const label = optStr(node.label, `${path}.nodes.${key}.label`)
     nodes[id] = {
