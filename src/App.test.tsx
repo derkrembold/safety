@@ -44,3 +44,41 @@ describe('App tab navigation', () => {
     ).toBeInTheDocument()
   })
 })
+
+describe('App keyboard shell (issue #20)', () => {
+  it('opens the command palette with Ctrl+K and runs a tab-switch command from it', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.keyboard('{Control>}k{/Control}')
+    expect(screen.getByRole('dialog', { name: 'Befehle' })).toBeInTheDocument()
+    await user.click(screen.getByRole('option', { name: 'Zu „Binary Decision Diagram“ wechseln' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Binary Decision Diagram' })).toBeInTheDocument()
+  })
+
+  it('also opens the command palette from the visible "Befehle" button', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Befehle' }))
+    expect(screen.getByRole('dialog', { name: 'Befehle' })).toBeInTheDocument()
+  })
+
+  it('opens the shortcuts overview with "?", but not while typing in a text field', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.keyboard('?')
+    expect(screen.getByRole('dialog', { name: 'Tastenkürzel' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+
+    await user.click(screen.getByRole('button', { name: 'Befehle' }))
+    await user.type(screen.getByRole('textbox', { name: 'Befehl suchen' }), '?')
+    expect(screen.queryByRole('dialog', { name: 'Tastenkürzel' })).not.toBeInTheDocument()
+  })
+
+  it('also opens the shortcuts overview from the visible "Tastenkürzel" button', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Tastenkürzel' }))
+    expect(screen.getByRole('dialog', { name: 'Tastenkürzel' })).toBeInTheDocument()
+  })
+})

@@ -42,6 +42,7 @@ Stilreferenz (entschieden in Issue #20): **Tokyo Night**, das aktuell aktive Oma
 - **Aktiver Reiter:** kräftiges Orange `#eb927b` (ebenfalls aus der Tokyo-Night-Palette) statt des normalen Akzent-Blaus, zusätzlich ein kleiner Unterstrich — damit der aktive Reiter sich deutlich abhebt.
 - **Debug-Leiste:** bleibt standardmäßig eingeklappt (nur die Checkbox "Debug-Modus" sichtbar), die übrigen Bedienelemente (Projektstand-Option, Export-Button, Statusmeldung) klappen erst auf, wenn "Debug-Modus" aktiviert wird — stört so im Alltag nicht.
 - Tastaturfokus ist sichtbar (`:focus-visible`-Kontur in Akzentfarbe), unabhängig vom Hover-/Auswahlzustand.
+- **Befehlspalette und Tastenkürzel-Übersicht:** Strg/Cmd+K öffnet eine durchsuchbare Befehlsliste (Reiterwechsel, Projekt exportieren/importieren, Debug-Modus umschalten); `?` öffnet eine Übersicht aller Tastenkürzel, gruppiert nach Kontext. Beide zusätzlich über sichtbare Buttons ("Befehle"/"Tastenkürzel") in der Toolbar erreichbar, falls ein Browser die Tastenkombination selbst belegt.
 
 ## Datenmodell
 

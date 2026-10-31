@@ -29,6 +29,15 @@ mit Schnittstellen, Modellannahmen und numerischen Grenzen beschrieben.
 
 Stilreferenz ist das Omarchy-Theme "Tokyo Night" (siehe [`Konzept.md`, Abschnitt "Design"](Konzept.md#design)). Alle Farb- und Schrift-Tokens sind zentral in `src/index.css` als CSS-Variablen definiert (`--bg`, `--bg-raised`, `--bg-sunken`, `--text`, `--text-h`, `--text-muted`, `--border`, `--accent`, `--accent-strong`, …). Komponenten referenzieren ausschließlich diese Variablen, keine Farbwerte direkt — neue Reiter übernehmen den Look dadurch automatisch, ohne eigenes Styling. Nebenaktionen (Projekt-Export/-Import, Debug-Log-Export) teilen sich eine gemeinsame Button-Regel in `src/App.css`.
 
+### Tastenkürzel-Übersicht und Befehlspalette
+
+`src/shell/` enthält zwei globale Dialoge, beide sowohl per Tastatur als auch über sichtbare Buttons in der oberen Toolbar erreichbar (Issue #20, AK "Tastenkürzel sind ohne Auswendiglernen auffindbar"):
+
+- **Befehle** (`CommandPalette.tsx`): Strg/Cmd+K oder der "Befehle"-Button öffnen eine durchsuchbare Liste aller globalen Aktionen (Reiterwechsel, Projekt exportieren/importieren, Debug-Modus umschalten, Tastenkürzel anzeigen). Pfeiltasten bewegen die Auswahl, Enter führt aus, Escape oder Klick außerhalb schließt ohne Aktion.
+- **Tastenkürzel** (`ShortcutsOverview.tsx`): `?` oder der "Tastenkürzel"-Button zeigen alle Kürzel gruppiert nach Kontext (global, Fehlerbaum-Editor).
+- Beide Tastenkombinationen werden per `event.preventDefault()` im globalen `keydown`-Listener von `App.tsx` abgefangen, falls der Browser sie selbst belegt (z. B. Strg/Cmd+K als Adressleisten-Fokus) — die sichtbaren Buttons bleiben deshalb der zuverlässige Zugang, unabhängig vom Browser. `?` öffnet die Übersicht nicht, während ein Text-/Eingabefeld fokussiert ist.
+- Neue globale Aktionen werden als `Command` (`src/shell/commands.ts`) der Liste in `App.tsx` hinzugefügt; Editor-spezifische Kürzel (aktuell nur im Fehlerbaum-Editor) werden zusätzlich in `ShortcutsOverview.tsx` gelistet.
+
 ## Mitmachen
 
 1. Ein offenes [Issue](https://github.com/derkrembold/safety/issues) aussuchen (oder im [Project-Board](https://github.com/users/derkrembold/projects/3) nachsehen, was noch offen ist).
