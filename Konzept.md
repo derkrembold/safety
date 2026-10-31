@@ -104,6 +104,7 @@ Als Ticketsystem reicht GitHub Issues zusammen mit einem GitHub-Projects-Board (
 - Commit-Messages kurz und im Imperativ, bei Bezug auf ein Issue mit Issue-Nummer.
 - Jedes Issue/PR ist eindeutig einem Studenten zugeordnet, zur Nachvollziehbarkeit und Bewertung (ähnlich der Namenskonvention aus den Praktikumsaufgaben).
 - Wer ein Issue bearbeitet, bringt die Testsuite auf den neuesten Stand: neue oder geänderte Funktionalität bekommt passende Tests, bestehende Tests müssen weiterhin grün sein. Ein PR ohne passende Tests wird nicht gemerged.
+- Jeder PR gibt an, mit welchem Agenten der Code entstanden ist (z. B. Claude, Codex, Antigravity, oder "ohne Agent"), z. B. in der PR-Beschreibung. Diese Angabe ist Voraussetzung für die Cross-Review-Regel unten.
 
 ### Review-Prozess
 
@@ -112,5 +113,15 @@ Drei getrennte Rollen:
 - **Codex (automatischer Review):** Sobald zu einem Issue ein Pull Request offen ist, schaut sich Codex den PR an und schreibt Kommentare dazu. Codex verändert dabei keinen Code, sondern kommentiert nur.
 - **Student bzw. ich (inhaltliche Freigabe):** Die von Codex aufgeworfenen Punkte müssen vom jeweiligen Studenten oder von mir gelöst werden. Die endgültige Merge-Freigabe liegt bei mir.
 - **Claude (Merge-Mechanik):** Auf Zuruf an Claude kann der Review-Schritt übersprungen und der Merge-Prozess direkt angestoßen werden — das führt dann Claude aus.
+
+#### Cross-Review-Regel (anderer Agent soll reviewen als der, der den Code erstellt hat)
+
+Reviews werden nie automatisch von mir selbst ausgelöst, sondern immer von Derk angestoßen (z. B. "guck mal was Codex sagt", "kannst du den PR reviewen"). Bevor ein inhaltlicher Review beginnt, prüft der angestoßene Agent die im PR angegebene Herkunft des Codes:
+
+- Stammt der Code laut PR-Angabe von einem anderen Agenten als dem Reviewer (z. B. Code von Codex, Review durch Claude), läuft der Review normal.
+- Stammt der Code vom selben Agenten wie der Reviewer (z. B. Code von Claude, Review soll durch Claude erfolgen), weist der Reviewer explizit darauf hin und empfiehlt, stattdessen einen anderen Agenten reviewen zu lassen — er reviewt nicht kommentarlos selbst.
+- Derk entscheidet im Einzelfall, ob trotzdem derselbe Agent reviewen soll. Auf ausdrücklichen Wunsch ("trotzdem du") reviewt der angestoßene Agent wie gewohnt.
+
+Grund: Ein Agent prüft eigene Annahmen seltener kritisch als ein anderer Agent/Modell. Codex' automatische PR-Kommentare sind von dieser Regel nicht betroffen, solange niemand mich (Claude) gezielt zum inhaltlichen Review eines von mir selbst erstellten PRs auffordert.
 
 
