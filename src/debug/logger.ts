@@ -6,12 +6,14 @@ export interface LogEntry {
   level: 'debug' | 'error';
   action: string;
   componentIds: string[];
+  /** Diagram occurrences, distinct from shared component identities. */
+  nodeIds?: string[];
   message?: string;
   stack?: string | null;
   truncated?: boolean;
 }
 
-export interface ActionOptions { componentIds?: string[] }
+export interface ActionOptions { componentIds?: string[]; nodeIds?: string[] }
 export interface ExportOptions { projectState?: unknown }
 export interface LoggerOptions {
   appVersion?: string;
@@ -64,6 +66,7 @@ export function createDebugLogger({
       const field = record.stack ? 'stack' : record.message ? 'message' : null;
       if (!field) {
         record.componentIds = [];
+        if (record.nodeIds !== undefined) record.nodeIds = [];
         record.action = 'oversized-record';
         record.truncated = true;
         serialized = JSON.stringify(record);
@@ -85,18 +88,20 @@ export function createDebugLogger({
     return true;
   }
 
-  function logAction(action: string, { componentIds = [] }: ActionOptions = {}) {
+  function logAction(action: string, { componentIds = [], nodeIds }: ActionOptions = {}) {
     if (!enabled) return false;
     return append({
       timestamp: now(), level: 'debug', action: String(action),
       componentIds: normalizeIds(componentIds),
+      ...(nodeIds === undefined ? {} : { nodeIds: normalizeIds(nodeIds) }),
     });
   }
 
-  function logError(action: string, error: unknown, { componentIds = [] }: ActionOptions = {}) {
+  function logError(action: string, error: unknown, { componentIds = [], nodeIds }: ActionOptions = {}) {
     return append({
       timestamp: now(), level: 'error', action: String(action),
-      componentIds: normalizeIds(componentIds), ...errorFields(error),
+      componentIds: normalizeIds(componentIds),
+      ...(nodeIds === undefined ? {} : { nodeIds: normalizeIds(nodeIds) }), ...errorFields(error),
     });
   }
 
