@@ -8,7 +8,13 @@
   --bg-sunken: #0e0e14;
   --text: #a9b1d6;
   --text-h: #c0caf5;
-  --text-muted: #565f89;
+  /*
+   * Aufgehellter Zwischenton statt dem Tokyo-Night-Stocktoken `dark_foreground`
+   * (#565f89): Der reicht für kleine, aktive Bedienelemente (nicht deaktiviert)
+   * nicht an WCAG-1.4.3-Kontrast (4.5:1) heran. Dieser Wert erreicht >= 4.9:1
+   * auf allen drei Hintergrundstufen (Codex-Review PR #21).
+   */
+  --text-muted: #8b94bd;
   --border: #414868;
   --code-bg: #24283b;
   --accent: #7aa2f7;
