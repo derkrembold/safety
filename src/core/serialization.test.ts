@@ -199,6 +199,27 @@ describe('parseProject', () => {
     expect(() => parseProject(broken)).toThrow(/diagrams\.fehlerbaum\.nodes\.a\.id/)
   })
 
+  it('rejects two diagram nodes whose keys collide on the same embedded id (Codex review, PR #26)', () => {
+    const broken = {
+      version: 1,
+      name: 'x',
+      createdAt: 'x',
+      modifiedAt: 'x',
+      diagrams: {
+        fehlerbaum: {
+          nodes: {
+            a: { id: 'same', kind: 'or' },
+            b: { id: 'same', kind: 'and' },
+          },
+          edges: [],
+          layout: {},
+          provenance: { origin: 'authored', stale: false },
+        },
+      },
+    }
+    expect(() => parseProject(broken)).toThrow(ProjectFormatError)
+  })
+
   it('still accepts a valid, consistent roundtrip with a shared component across two nodes', () => {
     // Regression guard: the new key===id check must not reject the normal case where
     // every key already matches its own id (the existing fixture already exercises this,
