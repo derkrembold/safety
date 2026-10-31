@@ -114,4 +114,31 @@ describe('App keyboard shell (issue #20)', () => {
     // never reach a background control like "Projekt exportieren".
     expect(document.activeElement).toBe(closeButton)
   })
+
+  it('returns focus to the button that opened a dialog, closing via Escape or the close button (Codex review, PR #29)', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const trigger = screen.getByRole('button', { name: 'Tastenkürzel' })
+    await user.click(trigger)
+    await user.keyboard('{Escape}')
+    expect(document.activeElement).toBe(trigger)
+
+    await user.click(trigger)
+    await user.click(screen.getByRole('button', { name: 'Schließen' }))
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('returns focus to the original trigger across a palette-to-overview handoff (Codex review, PR #29)', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const trigger = screen.getByRole('button', { name: 'Befehle' })
+    await user.click(trigger)
+    // Running "Tastenkürzel anzeigen" from the palette closes it and opens the overview
+    // in the same step; the overview must still know the palette's own trigger button.
+    await user.click(screen.getByRole('option', { name: 'Tastenkürzel anzeigen' }))
+    expect(screen.getByRole('dialog', { name: 'Tastenkürzel' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(trigger)
+  })
 })

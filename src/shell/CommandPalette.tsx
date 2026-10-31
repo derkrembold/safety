@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Command } from './commands'
 import { Modal } from './Modal'
 
@@ -13,7 +13,6 @@ export function CommandPalette({ open, commands, onClose }: Props) {
   const [query, setQuery] = useState('')
   const [highlighted, setHighlighted] = useState(0)
   const [wasOpen, setWasOpen] = useState(open)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -38,12 +37,6 @@ export function CommandPalette({ open, commands, onClose }: Props) {
   const clampedHighlighted =
     filtered.length === 0 ? 0 : Math.max(0, Math.min(highlighted, filtered.length - 1))
 
-  // Focusing the DOM input is a real external-system effect, unlike the state resets
-  // above, so it stays in an effect.
-  useEffect(() => {
-    if (open) inputRef.current?.focus()
-  }, [open])
-
   function run(command: Command | undefined) {
     if (!command) return
     onClose()
@@ -67,7 +60,6 @@ export function CommandPalette({ open, commands, onClose }: Props) {
         }}
       >
         <input
-          ref={inputRef}
           type="text"
           placeholder="Befehl suchen…"
           value={query}

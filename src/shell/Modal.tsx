@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 
 interface Props {
   open: boolean
@@ -24,14 +24,22 @@ const FOCUSABLE_SELECTOR =
  * dialog, even while a node stays selected behind it (Codex review, PR #29). Tab/Shift+Tab
  * are trapped among the dialog's own focusable elements, and focus returns to whatever
  * had it before the dialog opened once it closes.
+ *
+ * Initial focus is entirely Modal's own responsibility — callers must not put `autoFocus`
+ * on their own content. An `autoFocus` child would move focus during React's commit,
+ * before this effect runs, so `document.activeElement` here would already be that child
+ * instead of whatever opened the dialog; the dialog would then return focus nowhere on
+ * close (Codex review, PR #29). `useLayoutEffect`, not `useEffect`, so the capture and the
+ * move into the dialog happen as one step before paint, with nothing able to race either.
  */
 export function Modal({ open, label, onClose, className, children }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const previouslyFocused = useRef<HTMLElement | null>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (open) {
       previouslyFocused.current = document.activeElement as HTMLElement | null
+      dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)?.focus()
     } else if (previouslyFocused.current) {
       previouslyFocused.current.focus()
       previouslyFocused.current = null

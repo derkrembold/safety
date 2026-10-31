@@ -50,7 +50,8 @@ export function ShortcutsOverview({ open, onClose }: Props) {
         ))}
       </dl>
 
-      <button type="button" className="shell-close" onClick={onClose} autoFocus>
+      {/* No autoFocus: Modal owns initial focus so it can capture the trigger first. */}
+      <button type="button" className="shell-close" onClick={onClose}>
         Schließen
       </button>
     </Modal>
