@@ -21,6 +21,20 @@ Die Software soll als Web-App im Browser laufen. Projekte werden lokal als Datei
 
 Tech-Stack (entschieden in Issue #1): React + TypeScript + Vite. Projekte werden als JSON-Datei exportiert/importiert (Schema-Version im Feld `version`, siehe `src/project/types.ts`).
 
+## Design
+
+Stilreferenz (entschieden in Issue #20): **Tokyo Night**, das aktuell aktive Omarchy-Theme auf Derks Rechner. Gewählt statt der ursprünglich genannten Website https://plugins.omarchy.org/ (das ist nur ein Plugin-Marktplatz ohne Farbwerte) — Tokyo Night ist eine feste, lokale Referenz aus dem Omarchy-Paket (`/usr/share/omarchy/themes/tokyo-night/colors.toml`), keine sich ändernde Website.
+
+- **Font:** JetBrainsMono Nerd Font (monospace).
+- **Farben:**
+  - Hintergrund: `#1a1b26` (Basis), `#24283b` (heller, z. B. Panels), `#0e0e14` (dunkler)
+  - Vordergrund/Text: `#a9b1d6` (Standard), `#c0caf5` (hell/hervorgehoben)
+  - Akzent: `#7aa2f7` (Blau)
+  - Statusfarben: Rot `#f7768e`, Gelb `#e0af68`, Grün `#9ece6a`, Magenta `#ad8ee6`
+  - Selektion: `#292e42`, Muted/Rahmen: `#414868`
+- **Stil:** dunkel, dichte Infopanels mit dünnen farbigen Rahmen, abgerundete Ecken, kompakte Abstände, Status/Bedeutung nicht nur über Farbe sondern auch über Form/Text (Barrierefreiheit laut Issue #20).
+- Gilt zunächst für den Fehlerbaum-Reiter (Phase 1); Zuverlässigkeitsdiagramm (#3) und BDD (#4) übernehmen dieselbe Gestaltungsgrundlage bei ihrer Umsetzung.
+
 ## Datenmodell
 
 Das gemeinsame Datenmodell (entschieden in Issue #5) liegt in `src/core` und ist frei von Framework-Abhängigkeiten; `src/project/types.ts` ist der Einstiegspunkt für die UI.
