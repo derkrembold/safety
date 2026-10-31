@@ -8,7 +8,8 @@ import {
   outputAnchor,
   sizeOf,
 } from './geometry'
-import type { ConnectError, ElementKind, FaultTree, Point } from './model'
+import { Standardeingang, type ConnectError, type ElementKind, type FaultTree, type Point } from './model'
+import { appLogger } from '../debug/appLogger'
 import { DRAG_MIME, Sidebar } from './Sidebar'
 
 type StubKind = 'out' | 'in'
@@ -60,6 +61,36 @@ function track(
   window.addEventListener('pointerup', handleUp)
   window.addEventListener('pointercancel', handleCancel)
   return stop
+}
+
+/** Log identities separately from diagram occurrences, including before deletion. */
+function logContext(tree: FaultTree, nodeIds: readonly string[]) {
+  return {
+    nodeIds: [...new Set(nodeIds)],
+    componentIds: [...new Set(nodeIds.flatMap((id) => {
+      const element = tree.get(id)
+      return element instanceof Standardeingang ? [element.componentRef] : []
+    }))],
+  }
+}
+
+/** Unlike runAction, success is recorded only after a real, successful mutation. */
+function editorAction(
+  tree: FaultTree,
+  action: string,
+  nodeIds: readonly string[],
+  operation: () => boolean | readonly string[],
+) {
+  const context = logContext(tree, nodeIds)
+  try {
+    const result = operation()
+    if (result !== false) {
+      appLogger.logAction(action, Array.isArray(result) ? logContext(tree, result) : context)
+    }
+  } catch (error) {
+    appLogger.logError(action, error, context)
+    throw error
+  }
 }
 
 export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange?: (tree: FaultTree) => void }) {
@@ -151,17 +182,33 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
       const step = addCount.current++ % 8
       position = { x: 40 + step * 28, y: 40 + step * 28 }
     }
-    const element = tree.create(kind, clampPosition(kind, position, canvasBounds()))
-    setSelection({ type: 'element', id: element.id })
-    refresh()
+    editorAction(tree, 'fault-tree-element-created', [], () => {
+      const element = tree.create(kind, clampPosition(kind, position, canvasBounds()))
+      setSelection({ type: 'element', id: element.id })
+      refresh()
+      return [element.id]
+    })
   }
 
   const deleteSelection = useCallback(() => {
     if (!selection) return
-    if (selection.type === 'element') tree.remove(selection.id)
-    else tree.disconnect(selection.childId, selection.parentId)
-    setSelection(null)
-    refresh()
+    const ids = selection.type === 'element'
+      ? [selection.id, ...tree.connections().filter(({ childId, parentId }) =>
+          childId === selection.id || parentId === selection.id,
+        ).flatMap(({ childId, parentId }) => [childId, parentId])]
+      : [selection.childId, selection.parentId]
+    editorAction(tree, selection.type === 'element' ? 'fault-tree-element-deleted' : 'fault-tree-disconnected', ids, () => {
+      if (selection.type === 'element') {
+        if (!tree.get(selection.id)) return false
+        tree.remove(selection.id)
+      } else {
+        if (tree.parentOf(selection.childId)?.id !== selection.parentId) return false
+        tree.disconnect(selection.childId, selection.parentId)
+      }
+      setSelection(null)
+      refresh()
+      return true
+    })
   }, [selection, tree, refresh])
 
   useEffect(() => {
@@ -187,17 +234,25 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
     const startY = event.clientY
     startTracking(
       (move) => {
-        tree.layout.set(
-          id,
-          clampPosition(
-            kind,
-            { x: origin.x + move.clientX - startX, y: origin.y + move.clientY - startY },
-            canvasBounds(),
-          ),
-        )
-        refresh()
+        editorAction(tree, 'fault-tree-element-moved', [id], () => {
+          tree.layout.set(
+            id,
+            clampPosition(
+              kind,
+              { x: origin.x + move.clientX - startX, y: origin.y + move.clientY - startY },
+              canvasBounds(),
+            ),
+          )
+          refresh()
+          return false // Pointer movement is not a completed domain action.
+        })
       },
-      () => {},
+      () => {
+        const position = tree.layout.get(id)
+        if (tree.get(id) && position && (position.x !== origin.x || position.y !== origin.y)) {
+          editorAction(tree, 'fault-tree-element-moved', [id], () => true)
+        }
+      },
     )
   }
 
@@ -224,10 +279,16 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
           }
           return
         }
-        const result =
-          stub === 'out' ? tree.connect(elementId, targetId) : tree.connect(targetId, elementId)
-        if (result.ok) refresh()
-        else setNotice(ERROR_TEXT[result.error])
+        editorAction(tree, 'fault-tree-connected', [elementId, targetId], () => {
+          const result =
+            stub === 'out' ? tree.connect(elementId, targetId) : tree.connect(targetId, elementId)
+          if (!result.ok) {
+            setNotice(ERROR_TEXT[result.error])
+            return false
+          }
+          refresh()
+          return true
+        })
       },
       () => setPending(null),
     )
@@ -237,9 +298,13 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
     if (!editing) return
     const element = tree.get(editing.id)
     const value = editing.value.trim()
-    if (element && value) element.label = value
     setEditing(null)
-    refresh()
+    if (!element || !value || element.label === value) return
+    editorAction(tree, 'fault-tree-element-renamed', [element.id], () => {
+      element.label = value
+      refresh()
+      return true
+    })
   }
 
   function handleDrop(event: React.DragEvent) {

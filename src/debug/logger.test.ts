@@ -15,6 +15,28 @@ describe('debug logger', () => {
     ])
   })
 
+  it('keeps occurrence IDs separate from component IDs in actions, errors and exports', () => {
+    const logger = createDebugLogger({ debugEnabled: true })
+    const context = { nodeIds: ['first', 'second', 'first'], componentIds: ['shared', 'shared'] }
+    logger.logAction('connected', context)
+    logger.setDebugEnabled(false)
+    logger.logError('connected', new Error('Failure'), context)
+    const exported = JSON.parse(logger.exportJson())
+    for (const entry of exported.entries) {
+      expect(entry.nodeIds).toEqual(['first', 'second'])
+      expect(entry.componentIds).toEqual(['shared'])
+    }
+    logger.getEntries()[0].nodeIds!.push('foreign')
+    expect(logger.getEntries()[0].nodeIds).toEqual(['first', 'second'])
+  })
+
+  it('bounds oversized occurrence lists while retaining an error record', () => {
+    const logger = createDebugLogger({ maxBytes: 500 })
+    logger.logError('deleted', new Error('Failure'), { nodeIds: ['x'.repeat(10000)] })
+    expect(logger.getEntries()).toEqual([expect.objectContaining({ level: 'error', truncated: true, nodeIds: [] })])
+    expect(logger.byteLength).toBeLessThanOrEqual(500)
+  })
+
   it('captures exceptions and their stack even with debugging disabled', () => {
     const logger = createDebugLogger()
     const error = new Error('Calculation failed')

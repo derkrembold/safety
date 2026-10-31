@@ -94,3 +94,28 @@ werden. Unbekannte Elementtypen, fehlende Komponentenreferenzen und nicht darste
 Verbindungen (z. B. Zyklen oder mehrere Eltern eines Vorkommens) werden beim Import abgelehnt.
 Die Integrationstests in `src/App.integration.test.tsx` prüfen den Datei-Roundtrip über die
 App-Bedienelemente und den tatsächlichen Debug-Download; Downloads werden als Blob abgefangen.
+
+## Fachliches Editor-Logging (Issue #16)
+
+Bei aktiviertem Debug-Modus protokolliert der Fehlerbaum-Editor erfolgreiche Änderungen
+als `fault-tree-element-created`, `fault-tree-connected`, `fault-tree-disconnected`,
+`fault-tree-element-deleted`, `fault-tree-element-renamed` und `fault-tree-element-moved`.
+Die Verschiebung erzeugt einen Eintrag beim Loslassen, sofern sich die Position geändert
+hat; einzelne Mausbewegungen, Tastatureingaben, Auswahl und Größenanpassungen werden nicht
+als Aktionen gespeichert. Abgebrochene oder abgelehnte Verbindungen und unveränderte oder
+leere Namen erzeugen keinen Erfolgseintrag.
+
+Die optionalen `nodeIds` im gemeinsamen Logformat bezeichnen Diagramm-Vorkommen,
+`componentIds` ausschließlich referenzierte Identitäten aus der Komponenten-Registry.
+Gatter haben keine Komponentenidentität. Mehrere Vorkommen derselben Komponente liefern
+unterschiedliche Knoten-IDs und dieselbe, deduplizierte Komponenten-ID. Beim Löschen werden
+die IDs vor dem Entfernen erfasst, einschließlich der von entfernten Verbindungen
+betroffenen Nachbarn. Die Log-Erweiterung ist additiv; bestehende Einträge ohne `nodeIds`
+und das Exportformat mit `formatVersion: 1` bleiben gültig.
+
+Ohne Debug-Modus bleiben normale Editoraktionen ungespeichert. Tatsächliche Exceptions bei
+Editoränderungen werden mit Aktion, betroffenen IDs und Stacktrace auch dann erfasst und
+weitergereicht. Der optionale Projektstand im Debug-Download verwendet weiterhin das
+gemeinsame Projektmodell. `src/fehlerbaum/logging.integration.test.tsx` prüft die echte
+App-Bedienung und den heruntergeladenen JSON-Blob einschließlich geteilter Identitäten,
+Fehlern bei deaktiviertem Debug-Modus und abgebrochenen bzw. abgelehnten Verbindungen.
