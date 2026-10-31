@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createExprBuilder } from './logic/builder'
-import { isConst, isVar } from './logic/expr'
+import { isConst, isVar, type LogicExpr } from './logic/expr'
 import {
   assignmentOf,
   evaluate,
@@ -84,6 +84,38 @@ describe('expression builder', () => {
 
     expect(first).not.toBe(second)
     expect(b.var(asComponentId('a\\b'))).not.toBe(b.var(asComponentId('a\\\\b')))
+  })
+
+  it('keeps keys compact for a long alternating DAG and shares rebuilt subexpressions', () => {
+    const b = createExprBuilder()
+    const start = b.var(asComponentId('start'))
+    let expr = start
+    const nodes: LogicExpr[] = [start]
+    const gates: LogicExpr[] = []
+    const inputs: LogicExpr[] = []
+    const depth = 1024
+    for (let i = 0; i < depth; i++) {
+      const next = b.var(asComponentId(`c${i}|"\\`))
+      inputs.push(next)
+      expr = i % 2 ? b.or([expr, next]) : b.and([expr, next])
+      // Fail early if recursive JSON escaping returns, before constructing a huge key.
+      expect(b.keyOf(expr).length).toBeLessThan(64)
+      gates.push(expr)
+      nodes.push(next, expr)
+    }
+    expect(nodeCount(expr)).toBe(2 * depth + 1)
+    const keys = nodes.map((node) => b.keyOf(node))
+    expect(new Set(keys).size).toBe(nodes.length)
+    // Bound every stored signature, not just the root or wall-clock runtime.
+    // A two-input gate's signature must not grow with the depth of its children.
+    expect(Math.max(...keys.map((key) => key.length))).toBeLessThan(64)
+    expect(keys.reduce((total, key) => total + key.length, 0)).toBeLessThan(nodes.length * 64)
+    let rebuilt = start
+    inputs.forEach((next, i) => {
+      rebuilt = i % 2 ? b.or([next, rebuilt, next]) : b.and([next, rebuilt, next])
+      expect(rebuilt).toBe(gates[i])
+    })
+    expect(rebuilt).toBe(expr)
   })
 
   it('rejects expressions from a different builder', () => {
