@@ -62,10 +62,13 @@ function track(
   return stop
 }
 
-export function FehlerbaumEditor({ tree }: { tree: FaultTree }) {
+export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange?: (tree: FaultTree) => void }) {
   // Der Baum ist ein veränderbares Objekt; nach jeder Änderung neu zeichnen.
   const [, setRevision] = useState(0)
-  const refresh = useCallback(() => setRevision((revision) => revision + 1), [])
+  const refresh = useCallback(() => {
+    setRevision((revision) => revision + 1)
+    onChange?.(tree)
+  }, [tree, onChange])
   const [selection, setSelection] = useState<Selection>(null)
   const [pending, setPending] = useState<PendingConnection | null>(null)
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null)
@@ -113,11 +116,16 @@ export function FehlerbaumEditor({ tree }: { tree: FaultTree }) {
     // Bei kleiner werdender Zeichenfläche Elemente zurückholen, die sonst unerreichbar wären.
     const observer = new ResizeObserver(() => {
       const bounds = { w: canvas.clientWidth, h: canvas.clientHeight }
+      let changed = false
       for (const element of tree.all()) {
         const position = tree.layout.get(element.id)!
-        tree.layout.set(element.id, clampPosition(element.kind, position, bounds))
+        const next = clampPosition(element.kind, position, bounds)
+        if (position.x !== next.x || position.y !== next.y) {
+          tree.layout.set(element.id, next)
+          changed = true
+        }
       }
-      refresh()
+      if (changed) refresh()
     })
     observer.observe(canvas)
     return () => observer.disconnect()
