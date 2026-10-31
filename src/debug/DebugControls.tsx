@@ -32,12 +32,14 @@ export function DebugControls({ logger, getProjectState }: Props) {
     }
   }
 
-  return <section className="debug-controls" aria-label="Debugging">
+  return <section className={enabled ? 'debug-controls expanded' : 'debug-controls'} aria-label="Debugging">
     <label><input type="checkbox" checked={enabled}
       onChange={(event) => logger.setDebugEnabled(event.target.checked)} /> Debug-Modus</label>
-    {getProjectState && <label><input type="checkbox" checked={includeProject}
-      onChange={(event) => setIncludeProject(event.target.checked)} /> Projektstand einschließen</label>}
-    <button type="button" onClick={download}>Debug-Log exportieren</button>
-    <p role="status">{status}</p>
+    {enabled && <>
+      {getProjectState && <label><input type="checkbox" checked={includeProject}
+        onChange={(event) => setIncludeProject(event.target.checked)} /> Projektstand einschließen</label>}
+      <button type="button" onClick={download}>Debug-Log exportieren</button>
+      <p role="status">{status}</p>
+    </>}
   </section>;
 }

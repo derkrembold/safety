@@ -96,6 +96,7 @@ describe('project/editor integration', () => {
     expect(second.container.querySelectorAll('path.ft-connection')).toHaveLength(1)
     expect((await exportProject()).diagrams).toEqual(saved.diagrams)
     expect((await exportProject()).components).toEqual(saved.components)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Debug-Modus' }))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Projektstand einschließen' }))
     fireEvent.click(screen.getByRole('button', { name: 'Debug-Log exportieren' }))
     const debug = JSON.parse(await readBlob(downloads.at(-1)!))

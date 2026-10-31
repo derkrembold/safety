@@ -25,6 +25,10 @@ npm run build   # Typecheck + Produktions-Build
 Die interne BDD-Berechnung aus Issue #6 ist in [`docs/bdd.md`](docs/bdd.md)
 mit Schnittstellen, Modellannahmen und numerischen Grenzen beschrieben.
 
+## Design (Issue #20)
+
+Stilreferenz ist das Omarchy-Theme "Tokyo Night" (siehe [`Konzept.md`, Abschnitt "Design"](Konzept.md#design)). Alle Farb- und Schrift-Tokens sind zentral in `src/index.css` als CSS-Variablen definiert (`--bg`, `--bg-raised`, `--bg-sunken`, `--text`, `--text-h`, `--text-muted`, `--border`, `--accent`, `--accent-strong`, …). Komponenten referenzieren ausschließlich diese Variablen, keine Farbwerte direkt — neue Reiter übernehmen den Look dadurch automatisch, ohne eigenes Styling. Nebenaktionen (Projekt-Export/-Import, Debug-Log-Export) teilen sich eine gemeinsame Button-Regel in `src/App.css`.
+
 ## Mitmachen
 
 1. Ein offenes [Issue](https://github.com/derkrembold/safety/issues) aussuchen (oder im [Project-Board](https://github.com/users/derkrembold/projects/3) nachsehen, was noch offen ist).
@@ -50,7 +54,7 @@ Die Tests für Issue #7 liegen in `src/debug/logger.test.ts` und `src/debug/Debu
 
 `src/debug/logger.ts` enthält den typisierten Logger. Der Debug-Modus erfasst fachliche Aktionen; Fehler werden immer erfasst. Der Puffer hält höchstens 5 MiB JSON-Einträge und verwirft bei Bedarf die ältesten. Überlange Einträge werden gekürzt und markiert. Die Grenze betrifft die UTF-8-Daten der Einträge, nicht den gesamten JavaScript-Heap oder den Export mit optionalem Projektstand. Logs bleiben im Arbeitsspeicher und gehen beim Neuladen verloren.
 
-Die React-Komponente `DebugControls` bietet einen Schalter und JSON-Download. Wird `getProjectState` übergeben, kann der Benutzer den Projektstand ausdrücklich zum Export hinzufügen. Alle zukünftigen Reiter nutzen dieselbe Instanz aus `src/debug/appLogger.ts`:
+Die React-Komponente `DebugControls` bietet einen Schalter und JSON-Download. Solange "Debug-Modus" ausgeschaltet ist, zeigt die Leiste nur diesen Schalter; die übrigen Bedienelemente (Projektstand-Option, Export-Button, Statusmeldung) klappen erst nach dem Einschalten auf (Issue #20, UI-Entwurf). Das Erfassen von Fehlern im Logger selbst ist davon unabhängig und läuft immer, auch bei ausgeschaltetem Debug-Modus — nur der Export-Button ist bis zum Einschalten nicht sichtbar. Wird `getProjectState` übergeben, kann der Benutzer den Projektstand ausdrücklich zum Export hinzufügen. Alle zukünftigen Reiter nutzen dieselbe Instanz aus `src/debug/appLogger.ts`:
 
 ```tsx
 import { appLogger } from './debug/appLogger';
