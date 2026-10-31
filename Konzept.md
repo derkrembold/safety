@@ -124,4 +124,10 @@ Reviews werden nie automatisch von mir selbst ausgelöst, sondern immer von Derk
 
 Grund: Ein Agent prüft eigene Annahmen seltener kritisch als ein anderer Agent/Modell. Codex' automatische PR-Kommentare sind von dieser Regel nicht betroffen, solange niemand mich (Claude) gezielt zum inhaltlichen Review eines von mir selbst erstellten PRs auffordert.
 
+#### Suggestion-Blocks bei Review-Funden
+
+Wo ein Fund lokal und mechanisch behebbar ist (z. B. eine einzelne Stelle, kleine Änderung), liefert der Reviewer (Mensch oder Agent) einen GitHub-Suggestion-Block mit, der sich direkt per Klick übernehmen lässt. Bei größeren bzw. architektonischen Funden, die sich nicht auf eine lokale Stelle begrenzen lassen (z. B. #15), reicht eine textuelle Beschreibung.
+
+Ausnahme: Bei Pull Requests von menschlichen Studierenden ist ein fertiger Suggestion-Block optional, kein Muss — die Lösung selbst zu finden hat didaktischen Wert. Bei Agent-erstelltem Code (Codex, Claude, Antigravity, …) spricht nichts gegen sofort übernehmbare Vorschläge.
+
 
