@@ -151,4 +151,60 @@ describe('parseProject', () => {
   it('rejects a wrong type in the project header', () => {
     expect(() => parseProject({ version: 1, name: 42 })).toThrow(ProjectFormatError)
   })
+
+  it('rejects a component whose dictionary key does not match its embedded id', () => {
+    const broken = {
+      version: 1,
+      name: 'x',
+      createdAt: 'x',
+      modifiedAt: 'x',
+      components: { a: { id: 'different', name: 'A', failureRate: 1e-4 } },
+    }
+    expect(() => parseProject(broken)).toThrow(ProjectFormatError)
+    expect(() => parseProject(broken)).toThrow(/project\.components\.a\.id/)
+  })
+
+  it('rejects two components whose keys collide on the same embedded id, instead of silently dropping one', () => {
+    // Issue #17: both entries embed id "same" under different keys. Neither key matches
+    // its own id, so both are caught — not just the second (overwriting) one.
+    const broken = {
+      version: 1,
+      name: 'x',
+      createdAt: 'x',
+      modifiedAt: 'x',
+      components: {
+        a: { id: 'same', name: 'A', failureRate: 1e-3 },
+        b: { id: 'same', name: 'B', failureRate: 1e-1 },
+      },
+    }
+    expect(() => parseProject(broken)).toThrow(ProjectFormatError)
+  })
+
+  it('rejects a diagram node whose dictionary key does not match its embedded id', () => {
+    const broken = {
+      version: 1,
+      name: 'x',
+      createdAt: 'x',
+      modifiedAt: 'x',
+      diagrams: {
+        fehlerbaum: {
+          nodes: { a: { id: 'different', kind: 'or' } },
+          edges: [],
+          layout: {},
+          provenance: { origin: 'authored', stale: false },
+        },
+      },
+    }
+    expect(() => parseProject(broken)).toThrow(ProjectFormatError)
+    expect(() => parseProject(broken)).toThrow(/diagrams\.fehlerbaum\.nodes\.a\.id/)
+  })
+
+  it('still accepts a valid, consistent roundtrip with a shared component across two nodes', () => {
+    // Regression guard: the new key===id check must not reject the normal case where
+    // every key already matches its own id (the existing fixture already exercises this,
+    // this just asserts it explicitly against the file form after a roundtrip).
+    const project = sharedSensorProject()
+    const restored = fromJSON(toJSON(project))
+    expect(Object.keys(restored.components)).toEqual(Object.keys(project.components))
+  })
 })
