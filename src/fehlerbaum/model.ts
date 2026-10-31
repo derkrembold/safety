@@ -1,3 +1,5 @@
+import { asNodeId, newNodeId, newComponentId, newEdgeId, type ComponentId, type DiagramNode, type Project } from '../core'
+
 export type ElementKind = 'standardeingang' | 'oder' | 'und'
 
 export interface Point {
@@ -27,8 +29,11 @@ export abstract class FaultTreeElement {
 }
 
 export class Standardeingang extends FaultTreeElement {
-  constructor(id: string, label: string) {
+  readonly componentRef: ComponentId
+
+  constructor(id: string, label: string, componentRef = newComponentId()) {
     super(id, 'standardeingang', label)
+    this.componentRef = componentRef
   }
 
   get acceptsInputs(): boolean {
@@ -82,11 +87,75 @@ export class FaultTree {
   readonly layout = new Map<string, Point>()
 
   private readonly elements = new Map<string, FaultTreeElement>()
-  private nextId = 1
   private readonly nextLabelNumber: Record<ElementKind, number> = {
     standardeingang: 1,
     oder: 1,
     und: 1,
+  }
+
+  /** Rebuild the editor projection without requiring a complete, calculable tree. */
+  static fromProject(project: Project): FaultTree {
+    const tree = new FaultTree()
+    const diagram = project.diagrams.fehlerbaum
+    if (!diagram) return tree
+    for (const node of Object.values(diagram.nodes)) {
+      const component = node.componentRef !== undefined && Object.hasOwn(project.components, node.componentRef)
+        ? project.components[node.componentRef] : undefined
+      let element: FaultTreeElement
+      const label = node.label ?? component?.name ?? node.kind
+      if (node.kind === 'standardeingang' || node.kind === 'basicEvent') {
+        if (!component || !node.componentRef) throw new Error('Standardeingang ohne Komponentenidentität.')
+        element = new Standardeingang(node.id, label, node.componentRef)
+      } else if (node.kind === 'oder' || node.kind === 'or') element = new OderVerknuepfung(node.id, label)
+      else if (node.kind === 'und' || node.kind === 'and') element = new UndVerknuepfung(node.id, label)
+      else throw new Error(`Unbekanntes Fehlerbaum-Element: ${node.kind}`)
+      tree.elements.set(node.id, element)
+      tree.layout.set(node.id, diagram.layout[node.id] ?? { x: 40, y: 40 })
+      const number = Number(label.replace(`${LABEL_PREFIX[element.kind]} `, ''))
+      if (Number.isSafeInteger(number) && number >= 1) {
+        tree.nextLabelNumber[element.kind] = Math.max(tree.nextLabelNumber[element.kind], number + 1)
+      }
+    }
+    for (const edge of diagram.edges) {
+      const result = tree.connect(edge.to, edge.from)
+      if (!result.ok) throw new Error(`Ungültige Fehlerbaum-Verbindung: ${result.error}`)
+    }
+    return tree
+  }
+
+  /** Commit the editable projection, retaining registry data and other diagrams. */
+  toProject(project: Project): Project {
+    const components = { ...project.components }
+    const nodes: Record<string, DiagramNode> = Object.create(null)
+    for (const element of this.all()) {
+      const componentRef = element instanceof Standardeingang ? element.componentRef : undefined
+      nodes[element.id] = {
+        id: asNodeId(element.id),
+        kind: element.kind === 'standardeingang' ? 'basicEvent' : element.kind === 'oder' ? 'or' : 'and',
+        label: element.label,
+        ...(componentRef === undefined ? {} : { componentRef }),
+      }
+      if (componentRef !== undefined && !Object.hasOwn(components, componentRef)) {
+        // Zero denotes an unset rate; validation blocks calculations until it is supplied.
+        components[componentRef] = { id: componentRef, name: element.label, failureRate: 0 }
+      }
+    }
+    const previous = project.diagrams.fehlerbaum
+    const edges = this.connections().map(({ parentId, childId }) =>
+      previous?.edges.find((edge) => edge.from === parentId && edge.to === childId) ?? {
+        id: newEdgeId(), from: asNodeId(parentId), to: asNodeId(childId),
+      },
+    )
+    return {
+      ...project, modifiedAt: new Date().toISOString(), components,
+      diagrams: {
+        ...project.diagrams,
+        fehlerbaum: {
+          nodes, edges, layout: Object.fromEntries(this.layout),
+          provenance: { origin: 'authored', stale: false },
+        },
+      },
+    }
   }
 
   all(): FaultTreeElement[] {
@@ -98,7 +167,7 @@ export class FaultTree {
   }
 
   create(kind: ElementKind, position: Point): FaultTreeElement {
-    const id = `el-${this.nextId++}`
+    const id = newNodeId()
     const label = `${LABEL_PREFIX[kind]} ${this.nextLabelNumber[kind]++}`
     const element =
       kind === 'standardeingang'

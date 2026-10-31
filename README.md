@@ -67,3 +67,26 @@ appLogger.logAction('tab-converted', { componentIds: ['gate-1'] });
 ```
 
 `runAction` zeichnet fehlgeschlagene synchrone und asynchrone Berechnungen auch bei ausgeschaltetem Debug-Modus auf und gibt Fehler weiter. Unbehandelte Browser-Fehler, Promise-Ablehnungen und React-Renderfehler werden ebenfalls erfasst. Der Export enthält Zeitstempel, Aktion, Komponenten-IDs, Fehlermeldung und Stacktrace, sofern verfügbar, sowie App-Version, Commit-ID und Browser-Version. Vite liest die Version aus `package.json` und die Commit-ID beim Start beziehungsweise Build aus Git; ohne Git-Metadaten lautet die ID `unknown`. Die Logging-Bedienelemente stehen über allen drei Reitern bereit. Reiterwechsel und Projektimport/-export verwenden den gemeinsamen Logger. Der Projektstand kann beim Log-Export optional beigefügt werden. Die Diagramm-Editoren entstehen in eigenen Issues.
+
+## Fehlerbaum und Projektdatei (Issue #15)
+
+Der Projektzustand ist die gemeinsame Quelle für Editor, Projektdatei und den optionalen
+Projektstand im Debug-Export. Der Editor arbeitet auf einer daraus aufgebauten Projektion;
+jede Änderung schreibt Knoten, Verbindungen, Beschriftungen und Layout zurück ins Projekt.
+Ein Import ersetzt den Baum einschließlich der laufenden Auswahl und Mausaktionen. Fehler
+beim Lesen oder beim Aufbau des Fehlerbaums erhalten den bisherigen Projektzustand.
+
+Fehlerbaum-Knoten werden als `basicEvent`, `and` und `or` gespeichert. Der Import versteht
+auch die Editor-Bezeichnungen `standardeingang`, `und` und `oder`. Standardeingänge erhalten
+eine eigene `componentRef`; mehrfach vorkommende importierte Komponenten behalten ihre
+geteilte Identität. Umbenennen ändert die Beschriftung des Vorkommens, nicht die Identität
+oder die Registry. Vorhandene Raten und weitere Registry-Angaben bleiben erhalten.
+Neue Komponenten erhalten zunächst `failureRate: 0` ausschließlich in der Registry. Dieser
+Platzhalter wird von der fachlichen Validierung als noch nicht eingegebene Rate erkannt.
+Beim Löschen eines Vorkommens bleibt die Komponente für mögliche weitere Verwendungen erhalten.
+
+Unverbundene Elemente und Gatter ohne Eingänge dürfen gespeichert und wieder geladen
+werden. Unbekannte Elementtypen, fehlende Komponentenreferenzen und nicht darstellbare
+Verbindungen (z. B. Zyklen oder mehrere Eltern eines Vorkommens) werden beim Import abgelehnt.
+Die Integrationstests in `src/App.integration.test.tsx` prüfen den Datei-Roundtrip über die
+App-Bedienelemente und den tatsächlichen Debug-Download; Downloads werden als Blob abgefangen.

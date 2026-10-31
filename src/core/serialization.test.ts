@@ -55,7 +55,8 @@ describe('serializeProject', () => {
 
     expect(node?.componentRef).toBe(SENSOR)
     expect(Object.keys(node ?? {})).toEqual(['id', 'kind', 'componentRef'])
-    expect(JSON.stringify(serialized)).not.toContain('0.5')
+    expect(node).not.toHaveProperty('failureRate')
+    expect(node).not.toHaveProperty('repairRate')
   })
 
   it('preserves provenance and the stale flag', () => {

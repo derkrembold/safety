@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import './App.css'
 import { FaultTree } from './fehlerbaum/model'
 import { exportProjectToFile, importProjectFromFile } from './project/io'
@@ -20,16 +20,27 @@ function App() {
   const [project, setProject] = useState<Project>(() =>
     createEmptyProject('Neues Projekt'),
   )
-  // Außerhalb des Reiters gehalten, damit der Fehlerbaum beim Reiterwechsel erhalten bleibt.
-  const [faultTree] = useState(() => new FaultTree())
+  const faultTree = useMemo(() => FaultTree.fromProject(project), [project])
+  const [importRevision, setImportRevision] = useState(0)
+  const handleTreeChange = useCallback((tree: FaultTree) => {
+    setProject((current) => tree.toProject(current))
+  }, [])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleImportFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
-    appLogger.runAction('project-imported', () => importProjectFromFile(file))
-      .then(setProject)
+    appLogger.runAction('project-imported', async () => {
+      const loaded = await importProjectFromFile(file)
+      // Validate the editor projection before replacing any visible state.
+      FaultTree.fromProject(loaded)
+      return loaded
+    })
+      .then((loaded) => {
+        setProject(loaded)
+        setImportRevision((revision) => revision + 1)
+      })
       .catch((error: Error) => {
         alert(`Projekt konnte nicht geladen werden: ${error.message}`)
       })
@@ -75,7 +86,9 @@ function App() {
       <DebugControls logger={appLogger} getProjectState={() => project} />
 
       <main id="tab-content">
-        {activeTab === 'fehlerbaum' && <FehlerbaumanalyseTab tree={faultTree} />}
+        {activeTab === 'fehlerbaum' && (
+          <FehlerbaumanalyseTab key={importRevision} tree={faultTree} onChange={handleTreeChange} />
+        )}
         {activeTab === 'zuverlaessigkeitsdiagramm' && (
           <ZuverlaessigkeitsdiagrammTab />
         )}
