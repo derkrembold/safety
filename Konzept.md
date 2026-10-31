@@ -35,6 +35,14 @@ Stilreferenz (entschieden in Issue #20): **Tokyo Night**, das aktuell aktive Oma
 - **Stil:** dunkel, dichte Infopanels mit dünnen farbigen Rahmen, abgerundete Ecken, kompakte Abstände, Status/Bedeutung nicht nur über Farbe sondern auch über Form/Text (Barrierefreiheit laut Issue #20).
 - Gilt zunächst für den Fehlerbaum-Reiter (Phase 1); Zuverlässigkeitsdiagramm (#3) und BDD (#4) übernehmen dieselbe Gestaltungsgrundlage bei ihrer Umsetzung.
 
+### UI-Entwurf (mit Derk abgestimmt)
+
+- **Kopfbereich zweizeilig:** obere schmale Zeile = Datei-Ebene (App-Name links, "Projekt exportieren"/"Projekt importieren" klein und rechtsbündig); untere Zeile = die drei Reiter als Hauptnavigation über die volle Breite.
+- **Bedienelement-Hierarchie:** Reiter sind groß und prominent (Hauptnavigation). Nebenaktionen (Projekt-Export/-Import, Debug-Log exportieren) teilen sich einen einheitlichen, zurückhaltenden Button-Stil (kleine Schrift, dezente Randfarbe, gedämpfte Textfarbe) — eine zentrale CSS-Regel für beide, keine zwei verschiedenen Stile für dieselbe Bedeutungsebene.
+- **Aktiver Reiter:** kräftiges Orange `#eb927b` (ebenfalls aus der Tokyo-Night-Palette) statt des normalen Akzent-Blaus, zusätzlich ein kleiner Unterstrich — damit der aktive Reiter sich deutlich abhebt.
+- **Debug-Leiste:** bleibt standardmäßig eingeklappt (nur die Checkbox "Debug-Modus" sichtbar), die übrigen Bedienelemente (Projektstand-Option, Export-Button, Statusmeldung) klappen erst auf, wenn "Debug-Modus" aktiviert wird — stört so im Alltag nicht.
+- Tastaturfokus ist sichtbar (`:focus-visible`-Kontur in Akzentfarbe), unabhängig vom Hover-/Auswahlzustand.
+
 ## Datenmodell
 
 Das gemeinsame Datenmodell (entschieden in Issue #5) liegt in `src/core` und ist frei von Framework-Abhängigkeiten; `src/project/types.ts` ist der Einstiegspunkt für die UI.

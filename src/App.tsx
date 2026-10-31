@@ -49,6 +49,24 @@ function App() {
   return (
     <div id="app">
       <header id="app-header">
+        <div id="app-toolbar">
+          <span id="app-title">Safety</span>
+          <div id="project-actions">
+            <button type="button" onClick={() => appLogger.runAction('project-exported', () => exportProjectToFile(project))}>
+              Projekt exportieren
+            </button>
+            <button type="button" onClick={() => fileInputRef.current?.click()}>
+              Projekt importieren
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              onChange={handleImportFile}
+              hidden
+            />
+          </div>
+        </div>
         <nav id="tabs">
           {TABS.map((tab) => (
             <button
@@ -66,21 +84,6 @@ function App() {
             </button>
           ))}
         </nav>
-        <div id="project-actions">
-          <button type="button" onClick={() => appLogger.runAction('project-exported', () => exportProjectToFile(project))}>
-            Projekt exportieren
-          </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()}>
-            Projekt importieren
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            onChange={handleImportFile}
-            hidden
-          />
-        </div>
       </header>
 
       <DebugControls logger={appLogger} getProjectState={() => project} />

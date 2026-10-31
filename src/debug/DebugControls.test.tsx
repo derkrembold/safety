@@ -35,6 +35,7 @@ describe('DebugControls', () => {
     const project = { name: 'Test project', version: 1 }
     const getProjectState = vi.fn(() => project)
     render(<DebugControls logger={logger} getProjectState={getProjectState} />)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Debug-Modus' }))
     const exportButton = screen.getByRole('button', { name: 'Debug-Log exportieren' })
     fireEvent.click(exportButton)
     expect(getProjectState).not.toHaveBeenCalled()
@@ -53,13 +54,24 @@ describe('DebugControls', () => {
 
   it('hides the project option when no project provider exists', () => {
     render(<DebugControls logger={createDebugLogger()} />)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Debug-Modus' }))
     expect(screen.queryByRole('checkbox', { name: 'Projektstand einschließen' })).not.toBeInTheDocument()
   })
 
-  it('reports export failures and logs them even with debugging disabled', () => {
+  it('collapses the extra controls until Debug-Modus is enabled', () => {
+    render(<DebugControls logger={createDebugLogger()} getProjectState={() => ({})} />)
+    expect(screen.queryByRole('button', { name: 'Debug-Log exportieren' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: 'Projektstand einschließen' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Debug-Modus' }))
+    expect(screen.getByRole('button', { name: 'Debug-Log exportieren' })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: 'Projektstand einschließen' })).toBeInTheDocument()
+  })
+
+  it('reports export failures and logs them, available once Debug-Modus reveals the export button', () => {
     const logger = createDebugLogger()
     vi.spyOn(logger, 'exportJson').mockImplementation(() => { throw new Error('Cannot serialize project') })
     render(<DebugControls logger={logger} />)
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Debug-Modus' }))
     fireEvent.click(screen.getByRole('button', { name: 'Debug-Log exportieren' }))
     expect(screen.getByRole('status')).toHaveTextContent('Export fehlgeschlagen')
     expect(logger.getEntries()[0]).toMatchObject({

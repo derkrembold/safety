@@ -6,48 +6,91 @@
 
 #app-header {
   display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
+}
+
+#app-toolbar {
+  display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 24px;
+  padding: 6px 24px;
   border-bottom: 1px solid var(--border);
   gap: 16px;
-  flex-wrap: wrap;
+}
+
+#app-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 #tabs {
   display: flex;
   gap: 8px;
+  padding: 10px 24px;
+  flex-wrap: wrap;
 }
 
 .tab {
+  position: relative;
   padding: 8px 16px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: none;
+  background: var(--bg-raised);
   color: var(--text);
   cursor: pointer;
   font: inherit;
 }
 
-.tab.active {
+.tab:hover {
   border-color: var(--accent-border);
-  background: var(--accent-bg);
+}
+
+.tab.active {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong-bg);
   color: var(--text-h);
+  font-weight: 600;
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -5px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent-strong);
 }
 
 #project-actions {
   display: flex;
-  gap: 8px;
+  gap: 4px;
 }
 
-#project-actions button {
-  padding: 8px 16px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+/* Gemeinsamer Stil für Nebenaktionen (Projekt- und Debug-Buttons), siehe Issue #20. */
+#project-actions button,
+.debug-controls button {
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
   background: none;
-  color: var(--text);
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: inherit;
   cursor: pointer;
-  font: inherit;
+  font-family: inherit;
+}
+
+#project-actions button:hover,
+.debug-controls button:hover {
+  border-color: var(--border);
+  color: var(--text-h);
 }
 
 #tab-content {
@@ -71,18 +114,16 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 16px;
-  padding: 12px 24px;
+  padding: 4px 24px;
   border-bottom: 1px solid var(--border);
+  background: var(--bg-sunken);
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
-.debug-controls button {
-  padding: 8px 16px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: none;
+.debug-controls.expanded {
+  padding: 10px 24px;
   color: var(--text);
-  font: inherit;
-  cursor: pointer;
 }
 
 .debug-controls [role='status'] { margin: 0; }
