@@ -97,7 +97,10 @@ export function createDebugLogger({
       timestamp: now(), level: 'debug', action: String(action),
       componentIds: normalizeIds(componentIds),
       ...(nodeIds === undefined ? {} : { nodeIds: normalizeIds(nodeIds) }),
-      ...(details === undefined ? {} : { details }),
+      // Deep-copy: the stored entry must not stay linked to the caller's object, or a later
+      // mutation (e.g. reusing a Point) would rewrite history and bypass the byte accounting,
+      // which is computed once at insertion time (Codex review, PR #37).
+      ...(details === undefined ? {} : { details: structuredClone(details) }),
     });
   }
 
@@ -106,7 +109,7 @@ export function createDebugLogger({
       timestamp: now(), level: 'error', action: String(action),
       componentIds: normalizeIds(componentIds),
       ...(nodeIds === undefined ? {} : { nodeIds: normalizeIds(nodeIds) }),
-      ...(details === undefined ? {} : { details }), ...errorFields(error),
+      ...(details === undefined ? {} : { details: structuredClone(details) }), ...errorFields(error),
     });
   }
 
