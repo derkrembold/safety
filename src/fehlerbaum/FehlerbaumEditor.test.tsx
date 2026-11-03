@@ -203,6 +203,33 @@ describe('FehlerbaumEditor', () => {
       expect(restored.layout.get(oder.id)).toEqual({ x: -740, y: -740 })
     })
 
+    it('springt beim Weiterziehen nach einer Ursprungsverschiebung nicht zurück (Codex-Regression PR #35)', () => {
+      mockCanvasSize(200, 200)
+      const tree = new FaultTree()
+      const oder = tree.create('oder', { x: 60, y: 60 })
+      tree.create('standardeingang', { x: 300, y: 300 })
+      render(<FehlerbaumEditor tree={tree} />)
+      const region = screen.getByRole('region', { name: 'Fehlerbaum-Zeichenfläche' })
+      const surface = region.querySelector('.ft-surface') as HTMLElement
+      // Das Surface-Rechteck hängt im Browser vom aktuellen Scrollversatz ab.
+      vi.spyOn(surface, 'getBoundingClientRect').mockImplementation(() => ({
+        left: -region.scrollLeft, top: -region.scrollTop,
+        x: -region.scrollLeft, y: -region.scrollTop,
+        width: 1000, height: 1000,
+        right: 1000 - region.scrollLeft, bottom: 1000 - region.scrollTop,
+        toJSON: () => ({}),
+      }))
+      fireEvent.pointerDown(screen.getByText('ODER 1').closest('g')!, { button: 0, clientX: 100, clientY: 100 })
+      fireEvent.pointerMove(window, { clientX: 0, clientY: 0 })
+      expect(tree.layout.get(oder.id)).toEqual({ x: -40, y: -40 })
+      expect(region.scrollLeft).toBe(40)
+      // Gleiche Zeigerposition wie eben, aber nach der Ursprungsverschiebung: darf nicht zurückspringen.
+      fireEvent.pointerMove(window, { clientX: 0, clientY: 0 })
+      expect(tree.layout.get(oder.id)).toEqual({ x: -40, y: -40 })
+      fireEvent.pointerUp(window, { clientX: 0, clientY: 0 })
+      expect(tree.layout.get(oder.id)).toEqual({ x: -40, y: -40 })
+    })
+
     it('erweitert auch eine kleine Fläche für per Doppelklick eingefügte Elemente', async () => {
       mockCanvasSize(100, 100)
       const tree = new FaultTree()

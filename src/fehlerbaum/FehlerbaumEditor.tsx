@@ -209,7 +209,10 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
 
   function toCanvas(clientX: number, clientY: number): Point {
     const rect = surfaceRef.current!.getBoundingClientRect()
-    return canvasPoint({ x: clientX, y: clientY }, { x: rect.left, y: rect.top }, origin)
+    // originRef, not origin: a drag's pointermove callbacks are registered once at
+    // pointerdown and keep running across later renders, so reading the render-scoped
+    // `origin` would use a stale value once the drag itself shifts it (Codex review, PR #35).
+    return canvasPoint({ x: clientX, y: clientY }, { x: rect.left, y: rect.top }, originRef.current)
   }
 
   function addElement(kind: ElementKind, center?: Point) {
