@@ -8,12 +8,14 @@ export interface LogEntry {
   componentIds: string[];
   /** Diagram occurrences, distinct from shared component identities. */
   nodeIds?: string[];
+  /** Action-specific parameters (e.g. a resulting position or label) a regression test needs. */
+  details?: Record<string, unknown>;
   message?: string;
   stack?: string | null;
   truncated?: boolean;
 }
 
-export interface ActionOptions { componentIds?: string[]; nodeIds?: string[] }
+export interface ActionOptions { componentIds?: string[]; nodeIds?: string[]; details?: Record<string, unknown> }
 export interface ExportOptions { projectState?: unknown }
 export interface LoggerOptions {
   appVersion?: string;
@@ -67,6 +69,7 @@ export function createDebugLogger({
       if (!field) {
         record.componentIds = [];
         if (record.nodeIds !== undefined) record.nodeIds = [];
+        if (record.details !== undefined) record.details = undefined;
         record.action = 'oversized-record';
         record.truncated = true;
         serialized = JSON.stringify(record);
@@ -88,20 +91,25 @@ export function createDebugLogger({
     return true;
   }
 
-  function logAction(action: string, { componentIds = [], nodeIds }: ActionOptions = {}) {
+  function logAction(action: string, { componentIds = [], nodeIds, details }: ActionOptions = {}) {
     if (!enabled) return false;
     return append({
       timestamp: now(), level: 'debug', action: String(action),
       componentIds: normalizeIds(componentIds),
       ...(nodeIds === undefined ? {} : { nodeIds: normalizeIds(nodeIds) }),
+      // Deep-copy: the stored entry must not stay linked to the caller's object, or a later
+      // mutation (e.g. reusing a Point) would rewrite history and bypass the byte accounting,
+      // which is computed once at insertion time (Codex review, PR #37).
+      ...(details === undefined ? {} : { details: structuredClone(details) }),
     });
   }
 
-  function logError(action: string, error: unknown, { componentIds = [], nodeIds }: ActionOptions = {}) {
+  function logError(action: string, error: unknown, { componentIds = [], nodeIds, details }: ActionOptions = {}) {
     return append({
       timestamp: now(), level: 'error', action: String(action),
       componentIds: normalizeIds(componentIds),
-      ...(nodeIds === undefined ? {} : { nodeIds: normalizeIds(nodeIds) }), ...errorFields(error),
+      ...(nodeIds === undefined ? {} : { nodeIds: normalizeIds(nodeIds) }),
+      ...(details === undefined ? {} : { details: structuredClone(details) }), ...errorFields(error),
     });
   }
 

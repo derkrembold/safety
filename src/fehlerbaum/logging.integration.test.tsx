@@ -110,6 +110,16 @@ describe('editor domain logging and real debug downloads', () => {
     }
     expect(logged.at(-1)?.nodeIds).toEqual([gate, input])
     expect(logged.every((entry) => !Number.isNaN(Date.parse(entry.timestamp)))).toBe(true)
+    // Parameters a regression test built from the log would need (issue #30): what was
+    // created where, which end of a connection is the child, the resulting position/label.
+    expect(logged[0].details).toEqual({ kind: 'standardeingang', position: { x: 40, y: 40 } })
+    expect(logged[1].details).toEqual({ kind: 'oder', position: { x: 68, y: 68 } })
+    expect(logged[2].details).toEqual({ childId: input, parentId: gate })
+    expect(logged[3].details).toEqual({ label: 'Sensor A' })
+    expect(logged[4].details).toEqual({ position: { x: 60, y: 60 } })
+    expect(logged[5].details).toEqual({ childId: input, parentId: gate })
+    expect(logged[6].details).toEqual({ childId: input, parentId: gate })
+    expect(logged[7].details).toBeUndefined() // Element deletion: identities already say it all.
     fireEvent.pointerDown(screen.getByText('Sensor A').closest('g')!, { button: 0 })
     await userEvent.keyboard('{Delete}')
     const afterDelete = await downloadLog()

@@ -37,6 +37,44 @@ describe('debug logger', () => {
     expect(logger.byteLength).toBeLessThanOrEqual(500)
   })
 
+  it('carries action-specific details needed to reconstruct a regression test (issue #30)', () => {
+    const logger = createDebugLogger({ debugEnabled: true })
+    logger.logAction('fault-tree-element-moved', { nodeIds: ['n1'], details: { position: { x: -40, y: -40 } } })
+    expect(logger.getEntries()).toEqual([
+      expect.objectContaining({ action: 'fault-tree-element-moved', details: { position: { x: -40, y: -40 } } }),
+    ])
+    const exported = JSON.parse(logger.exportJson())
+    expect(exported.entries[0].details).toEqual({ position: { x: -40, y: -40 } })
+  })
+
+  it.each(['logAction', 'logError'] as const)(
+    "copies details at the time of %s, so a later mutation can't rewrite history or bypass the byte accounting (Codex-Regression PR #37)",
+    (method) => {
+      const logger = createDebugLogger({ debugEnabled: true, maxBytes: 500 })
+      const details: { position: { x: number; y: number }; label: string } = { position: { x: 40, y: 40 }, label: 'A' }
+      if (method === 'logAction') logger.logAction('moved', { details })
+      else logger.logError('moved', new Error('Failure'), { details })
+      const byteLengthAtLogTime = logger.byteLength
+      details.position.x = -999
+      details.label = 'x'.repeat(10000)
+      expect(logger.getEntries()[0].details).toEqual({ position: { x: 40, y: 40 }, label: 'A' })
+      expect(JSON.parse(logger.exportJson()).entries[0].details).toEqual({ position: { x: 40, y: 40 }, label: 'A' })
+      expect(logger.byteLength).toBe(byteLengthAtLogTime)
+    },
+  )
+
+  it('omits details rather than growing an entry past the byte limit', () => {
+    const logger = createDebugLogger({ maxBytes: 500 })
+    logger.logError('deleted', new Error('Failure'), {
+      nodeIds: ['x'.repeat(10000)],
+      details: { label: 'should not survive truncation' },
+    })
+    expect(logger.getEntries()).toEqual([
+      expect.objectContaining({ level: 'error', truncated: true, nodeIds: [], details: undefined }),
+    ])
+    expect(logger.byteLength).toBeLessThanOrEqual(500)
+  })
+
   it('captures exceptions and their stack even with debugging disabled', () => {
     const logger = createDebugLogger()
     const error = new Error('Calculation failed')

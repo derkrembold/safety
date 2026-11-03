@@ -77,18 +77,26 @@ function logContext(tree: FaultTree, nodeIds: readonly string[]) {
   }
 }
 
+interface EditorActionResult {
+  /** Overrides the identities passed in, e.g. for a just-created element. */
+  nodeIds?: readonly string[]
+  /** Action-specific parameters a regression test built from the log would need (issue #30). */
+  details?: Record<string, unknown>
+}
+
 /** Unlike runAction, success is recorded only after a real, successful mutation. */
 function editorAction(
   tree: FaultTree,
   action: string,
   nodeIds: readonly string[],
-  operation: () => boolean | readonly string[],
+  operation: () => false | EditorActionResult,
 ) {
   const context = logContext(tree, nodeIds)
   try {
     const result = operation()
     if (result !== false) {
-      appLogger.logAction(action, Array.isArray(result) ? logContext(tree, result) : context)
+      const loggedContext = result.nodeIds === undefined ? context : logContext(tree, result.nodeIds)
+      appLogger.logAction(action, { ...loggedContext, ...(result.details === undefined ? {} : { details: result.details }) })
     }
   } catch (error) {
     appLogger.logError(action, error, context)
@@ -229,7 +237,7 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
       const element = tree.create(kind, position)
       setSelection({ type: 'element', id: element.id })
       refresh()
-      return [element.id]
+      return { nodeIds: [element.id], details: { kind: element.kind, position } }
     })
   }
 
@@ -244,13 +252,15 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
       if (selection.type === 'element') {
         if (!tree.get(selection.id)) return false
         tree.remove(selection.id)
-      } else {
-        if (tree.parentOf(selection.childId)?.id !== selection.parentId) return false
-        tree.disconnect(selection.childId, selection.parentId)
+        setSelection(null)
+        refresh()
+        return {}
       }
+      if (tree.parentOf(selection.childId)?.id !== selection.parentId) return false
+      tree.disconnect(selection.childId, selection.parentId)
       setSelection(null)
       refresh()
-      return true
+      return { details: { childId: selection.childId, parentId: selection.parentId } }
     })
   }, [selection, tree, refresh])
 
@@ -290,7 +300,7 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
       () => {
         const position = tree.layout.get(id)
         if (tree.get(id) && position && (position.x !== startPosition.x || position.y !== startPosition.y)) {
-          editorAction(tree, 'fault-tree-element-moved', [id], () => true)
+          editorAction(tree, 'fault-tree-element-moved', [id], () => ({ details: { position } }))
         }
       },
     )
@@ -321,14 +331,14 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
           return
         }
         editorAction(tree, 'fault-tree-connected', [elementId, targetId], () => {
-          const result =
-            stub === 'out' ? tree.connect(elementId, targetId) : tree.connect(targetId, elementId)
+          const [childId, parentId] = stub === 'out' ? [elementId, targetId] : [targetId, elementId]
+          const result = tree.connect(childId, parentId)
           if (!result.ok) {
             setNotice(ERROR_TEXT[result.error])
             return false
           }
           refresh()
-          return true
+          return { details: { childId, parentId } }
         })
       },
       () => setPending(null),
@@ -344,7 +354,7 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
     editorAction(tree, 'fault-tree-element-renamed', [element.id], () => {
       element.label = value
       refresh()
-      return true
+      return { details: { label: value } }
     })
   }
 
