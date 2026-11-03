@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import './FehlerbaumEditor.css'
 import { ElementGlyph } from './ElementGlyph'
 import {
-  clampPosition,
+  CANVAS_PADDING,
+  canvasPoint,
+  canvasSize,
+  nonnegativePosition,
   connectionPath,
   inputAnchor,
   outputAnchor,
@@ -95,7 +98,7 @@ function editorAction(
 
 export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange?: (tree: FaultTree) => void }) {
   // Der Baum ist ein veränderbares Objekt; nach jeder Änderung neu zeichnen.
-  const [, setRevision] = useState(0)
+  const [revision, setRevision] = useState(0)
   const refresh = useCallback(() => {
     setRevision((revision) => revision + 1)
     onChange?.(tree)
@@ -105,6 +108,11 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
+  const surfaceRef = useRef<HTMLDivElement>(null)
+  const drawingRef = useRef<SVGGElement>(null)
+  const [viewport, setViewport] = useState({ w: 0, h: 0 })
+  const [measuredBounds, setMeasuredBounds] = useState<{ right: number; bottom: number }>()
+  const updateOnScroll = useRef<(() => void) | null>(null)
   const addCount = useRef(0)
   const cancelTracking = useRef<(() => void) | null>(null)
 
@@ -112,23 +120,29 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
   const abortTracking = useCallback(() => {
     cancelTracking.current?.()
     cancelTracking.current = null
+    updateOnScroll.current = null
     setPending(null)
   }, [])
 
   function startTracking(
+    initialPointer: PointerEvent,
     onMove: (event: PointerEvent) => void,
     onEnd: (event: PointerEvent) => void,
     onCancel: () => void = () => {},
   ) {
     cancelTracking.current?.()
+    let lastPointer = initialPointer
+    updateOnScroll.current = () => onMove(lastPointer)
     cancelTracking.current = track(
-      onMove,
+      (event) => { lastPointer = event; onMove(event) },
       (event) => {
         cancelTracking.current = null
+        updateOnScroll.current = null
         onEnd(event)
       },
       () => {
         cancelTracking.current = null
+        updateOnScroll.current = null
         onCancel()
       },
     )
@@ -136,31 +150,34 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
 
   useEffect(() => abortTracking, [abortTracking])
 
-  function canvasBounds() {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current
-    return { w: canvas?.clientWidth ?? 0, h: canvas?.clientHeight ?? 0 }
-  }
+    if (!canvas) return
+    const measure = () => {
+      const next = { w: canvas.clientWidth, h: canvas.clientHeight }
+      setViewport((previous) => previous.w === next.w && previous.h === next.h ? previous : next)
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
+    observer?.observe(canvas)
+    window.addEventListener('resize', measure)
+    return () => { observer?.disconnect(); window.removeEventListener('resize', measure) }
+  }, [])
+
+  // SVG's actual text metrics include long labels and the chosen/fallback font.
+  useLayoutEffect(() => {
+    const drawing = drawingRef.current
+    if (!drawing?.getBBox) return
+    const box = drawing.getBBox()
+    const next = { right: box.x + box.width, bottom: box.y + box.height }
+    setMeasuredBounds((previous) => previous?.right === next.right && previous.bottom === next.bottom ? previous : next)
+  }, [tree, revision, viewport])
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || typeof ResizeObserver === 'undefined') return
-    // Bei kleiner werdender Zeichenfläche Elemente zurückholen, die sonst unerreichbar wären.
-    const observer = new ResizeObserver(() => {
-      const bounds = { w: canvas.clientWidth, h: canvas.clientHeight }
-      let changed = false
-      for (const element of tree.all()) {
-        const position = tree.layout.get(element.id)!
-        const next = clampPosition(element.kind, position, bounds)
-        if (position.x !== next.x || position.y !== next.y) {
-          tree.layout.set(element.id, next)
-          changed = true
-        }
-      }
-      if (changed) refresh()
-    })
-    observer.observe(canvas)
-    return () => observer.disconnect()
-  }, [tree, refresh])
+    const redraw = () => setRevision((revision) => revision + 1)
+    document.fonts?.addEventListener('loadingdone', redraw)
+    return () => document.fonts?.removeEventListener('loadingdone', redraw)
+  }, [])
 
   useEffect(() => {
     if (!notice) return
@@ -169,8 +186,8 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
   }, [notice])
 
   function toCanvas(clientX: number, clientY: number): Point {
-    const rect = canvasRef.current!.getBoundingClientRect()
-    return { x: clientX - rect.left, y: clientY - rect.top }
+    const rect = surfaceRef.current!.getBoundingClientRect()
+    return canvasPoint({ x: clientX, y: clientY }, { x: rect.left, y: rect.top })
   }
 
   function addElement(kind: ElementKind, center?: Point) {
@@ -180,10 +197,11 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
       position = { x: Math.max(0, center.x - w / 2), y: Math.max(0, center.y - h / 2) }
     } else {
       const step = addCount.current++ % 8
-      position = { x: 40 + step * 28, y: 40 + step * 28 }
+      const canvas = canvasRef.current!
+      position = { x: canvas.scrollLeft + 40 + step * 28, y: canvas.scrollTop + 40 + step * 28 }
     }
     editorAction(tree, 'fault-tree-element-created', [], () => {
-      const element = tree.create(kind, clampPosition(kind, position, canvasBounds()))
+      const element = tree.create(kind, nonnegativePosition(position))
       setSelection({ type: 'element', id: element.id })
       refresh()
       return [element.id]
@@ -229,19 +247,17 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
     if (event.button !== 0) return
     setSelection({ type: 'element', id })
     const origin = tree.layout.get(id)!
-    const kind = tree.get(id)!.kind
-    const startX = event.clientX
-    const startY = event.clientY
+    const start = toCanvas(event.clientX, event.clientY)
     startTracking(
+      event.nativeEvent,
       (move) => {
         editorAction(tree, 'fault-tree-element-moved', [id], () => {
           tree.layout.set(
             id,
-            clampPosition(
-              kind,
-              { x: origin.x + move.clientX - startX, y: origin.y + move.clientY - startY },
-              canvasBounds(),
-            ),
+            nonnegativePosition({
+              x: origin.x + toCanvas(move.clientX, move.clientY).x - start.x,
+              y: origin.y + toCanvas(move.clientX, move.clientY).y - start.y,
+            }),
           )
           refresh()
           return false // Pointer movement is not a completed domain action.
@@ -262,6 +278,7 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
     setSelection(null)
     setPending({ elementId, stub, pointer: toCanvas(event.clientX, event.clientY) })
     startTracking(
+      event.nativeEvent,
       (move) => {
         setPending({ elementId, stub, pointer: toCanvas(move.clientX, move.clientY) })
       },
@@ -319,120 +336,142 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
   const editedElement = editing ? tree.get(editing.id) : undefined
   const editedPosition = editing ? tree.layout.get(editing.id) : undefined
 
+  const surfaceSize = canvasSize(
+    elements.map((element) => ({ kind: element.kind, label: element.label, position: tree.layout.get(element.id)! })),
+    viewport,
+    measuredBounds,
+    editedElement && editedPosition ? {
+      right: editedPosition.x + sizeOf(editedElement.kind).w + 6 + 160,
+      bottom: editedPosition.y + sizeOf(editedElement.kind).h / 2 + 20,
+    } : undefined,
+  )
+
   return (
     <div className="ft-editor">
       <div className="ft-canvas-column">
-        <div
-          ref={canvasRef}
-          className="ft-canvas"
-          onDragOver={(event) => {
-            if (event.dataTransfer.types.includes(DRAG_MIME)) event.preventDefault()
-          }}
-          onDrop={handleDrop}
-        >
-          <svg className="ft-svg">
-            <rect
-              className="ft-background"
-              width="100%"
-              height="100%"
-              onPointerDown={() => {
-                setSelection(null)
-                setEditing(null)
-              }}
-            />
-
-            {connections.map(({ childId, parentId }) => {
-              const child = tree.get(childId)!
-              const parent = tree.get(parentId)!
-              const path = connectionPath(
-                outputAnchor(child.kind, tree.layout.get(childId)!),
-                inputAnchor(parent.kind, tree.layout.get(parentId)!),
-              )
-              const selected =
-                selection?.type === 'connection' &&
-                selection.childId === childId &&
-                selection.parentId === parentId
-              return (
-                <g
-                  key={`${childId}>${parentId}`}
-                  onPointerDown={(event) => {
-                    event.stopPropagation()
-                    setSelection({ type: 'connection', childId, parentId })
+        <div className="ft-canvas-frame">
+          <div
+            ref={canvasRef}
+            role="region"
+            aria-label="Fehlerbaum-Zeichenfläche"
+            tabIndex={0}
+            onScroll={() => updateOnScroll.current?.()}
+            className="ft-canvas"
+            onDragOver={(event) => {
+              if (event.dataTransfer.types.includes(DRAG_MIME)) event.preventDefault()
+            }}
+            onDrop={handleDrop}
+          >
+            <div ref={surfaceRef} className="ft-surface" style={{ width: surfaceSize.w, height: surfaceSize.h }}>
+              <svg className="ft-svg">
+                <rect
+                  className="ft-background"
+                  width="100%"
+                  height="100%"
+                  onPointerDown={() => {
+                    setSelection(null)
+                    setEditing(null)
                   }}
-                >
-                  <path className="ft-connection-hit" d={path} />
-                  <path className={selected ? 'ft-connection selected' : 'ft-connection'} d={path} />
+                />
+
+                <g ref={drawingRef} transform={`translate(${CANVAS_PADDING} ${CANVAS_PADDING})`}>
+                  {connections.map(({ childId, parentId }) => {
+                    const child = tree.get(childId)!
+                    const parent = tree.get(parentId)!
+                    const path = connectionPath(
+                      outputAnchor(child.kind, tree.layout.get(childId)!),
+                      inputAnchor(parent.kind, tree.layout.get(parentId)!),
+                    )
+                    const selected =
+                      selection?.type === 'connection' &&
+                      selection.childId === childId &&
+                      selection.parentId === parentId
+                    return (
+                      <g
+                        key={`${childId}>${parentId}`}
+                        onPointerDown={(event) => {
+                          event.stopPropagation()
+                          setSelection({ type: 'connection', childId, parentId })
+                        }}
+                      >
+                        <path className="ft-connection-hit" d={path} />
+                        <path className={selected ? 'ft-connection selected' : 'ft-connection'} d={path} />
+                      </g>
+                    )
+                  })}
+
+                  {elements.map((element) => {
+                    const position = tree.layout.get(element.id)!
+                    const { w, h } = sizeOf(element.kind)
+                    const selected = selection?.type === 'element' && selection.id === element.id
+                    const hasParent = tree.parentOf(element.id) !== undefined
+                    const isOtherThanPending = pending !== null && pending.elementId !== element.id
+                    return (
+                      <g
+                        key={element.id}
+                        className={selected ? 'ft-element selected' : 'ft-element'}
+                        transform={`translate(${position.x} ${position.y})`}
+                        onPointerDown={(event) => startMove(event, element.id)}
+                        onDoubleClick={() => setEditing({ id: element.id, value: element.label })}
+                      >
+                        <ElementGlyph kind={element.kind} />
+                        <text className="ft-label" x={w + 10} y={h / 2} dominantBaseline="middle">
+                          {element.label}
+                        </text>
+                        <Stub
+                          x={w / 2}
+                          y={0}
+                          elementId={element.id}
+                          stub="out"
+                          used={hasParent}
+                          candidate={isOtherThanPending && pending.stub === 'in'}
+                          onPointerDown={startConnection}
+                        />
+                        {element.acceptsInputs && (
+                          <Stub
+                            x={w / 2}
+                            y={h}
+                            elementId={element.id}
+                            stub="in"
+                            used={element.nodes.length > 0}
+                            candidate={isOtherThanPending && pending.stub === 'out'}
+                            onPointerDown={startConnection}
+                          />
+                        )}
+                      </g>
+                    )
+                  })}
+
                 </g>
-              )
-            })}
-
-            {elements.map((element) => {
-              const position = tree.layout.get(element.id)!
-              const { w, h } = sizeOf(element.kind)
-              const selected = selection?.type === 'element' && selection.id === element.id
-              const hasParent = tree.parentOf(element.id) !== undefined
-              const isOtherThanPending = pending !== null && pending.elementId !== element.id
-              return (
-                <g
-                  key={element.id}
-                  className={selected ? 'ft-element selected' : 'ft-element'}
-                  transform={`translate(${position.x} ${position.y})`}
-                  onPointerDown={(event) => startMove(event, element.id)}
-                  onDoubleClick={() => setEditing({ id: element.id, value: element.label })}
-                >
-                  <ElementGlyph kind={element.kind} />
-                  <text className="ft-label" x={w + 10} y={h / 2} dominantBaseline="middle">
-                    {element.label}
-                  </text>
-                  <Stub
-                    x={w / 2}
-                    y={0}
-                    elementId={element.id}
-                    stub="out"
-                    used={hasParent}
-                    candidate={isOtherThanPending && pending.stub === 'in'}
-                    onPointerDown={startConnection}
-                  />
-                  {element.acceptsInputs && (
-                    <Stub
-                      x={w / 2}
-                      y={h}
-                      elementId={element.id}
-                      stub="in"
-                      used={element.nodes.length > 0}
-                      candidate={isOtherThanPending && pending.stub === 'out'}
-                      onPointerDown={startConnection}
-                    />
-                  )}
+                <g transform={`translate(${CANVAS_PADDING} ${CANVAS_PADDING})`}>
+                  {pending && <PendingLine tree={tree} pending={pending} />}
                 </g>
-              )
-            })}
+              </svg>
 
-            {pending && <PendingLine tree={tree} pending={pending} />}
-          </svg>
+              {editing && editedElement && editedPosition && (
+                <input
+                  className="ft-rename"
+                  autoFocus
+                  value={editing.value}
+                  style={{
+                    left: CANVAS_PADDING + editedPosition.x + sizeOf(editedElement.kind).w + 6,
+                    top: CANVAS_PADDING + editedPosition.y + sizeOf(editedElement.kind).h / 2 - 14,
+                  }}
+                  onChange={(event) => setEditing({ id: editing.id, value: event.target.value })}
+                  onFocus={(event) => event.target.select()}
+                  onBlur={commitRename}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') commitRename()
+                    else if (event.key === 'Escape') setEditing(null)
+                  }}
+                />
+              )}
 
-          {editing && editedElement && editedPosition && (
-            <input
-              className="ft-rename"
-              autoFocus
-              value={editing.value}
-              style={{
-                left: editedPosition.x + sizeOf(editedElement.kind).w + 6,
-                top: editedPosition.y + sizeOf(editedElement.kind).h / 2 - 14,
-              }}
-              onChange={(event) => setEditing({ id: editing.id, value: event.target.value })}
-              onFocus={(event) => event.target.select()}
-              onBlur={commitRename}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') commitRename()
-                else if (event.key === 'Escape') setEditing(null)
-              }}
-            />
-          )}
-
-          {elements.length === 0 && (
-            <p className="ft-empty">Elemente aus der Seitenleiste in dieses Feld ziehen.</p>
-          )}
+            </div>
+            {elements.length === 0 && (
+              <p className="ft-empty">Elemente aus der Seitenleiste in dieses Feld ziehen.</p>
+            )}
+          </div>
           {notice && (
             <div className="ft-notice" role="status">
               {notice}

@@ -32,21 +32,45 @@ export function connectionPath(from: Point, to: Point): string {
   return `M ${from.x} ${from.y} C ${from.x} ${midY}, ${to.x} ${midY}, ${to.x} ${to.y}`
 }
 
-/**
- * Hält ein Element vollständig innerhalb der Zeichenfläche. Ist die Fläche
- * (noch) nicht vermessen, wird nur nach links und oben begrenzt.
- */
-export function clampPosition(
-  kind: ElementKind,
-  position: Point,
-  bounds: { w: number; h: number },
-): Point {
-  const x = Math.max(0, position.x)
-  const y = Math.max(0, position.y)
-  if (bounds.w <= 0 || bounds.h <= 0) return { x, y }
-  const { w, h } = sizeOf(kind)
+/** Space around the model origin and the right/bottom content bounds, including stubs. */
+export const CANVAS_PADDING = 24
+
+export interface CanvasSize { w: number; h: number }
+export interface CanvasItem { kind: ElementKind; label: string; position: Point }
+
+/** The scroll offset is already included in the moving surface's client rectangle. */
+export function canvasPoint(client: Point, surfaceOrigin: Point): Point {
   return {
-    x: Math.min(x, Math.max(0, bounds.w - w)),
-    y: Math.min(y, Math.max(0, bounds.h - h)),
+    x: client.x - surfaceOrigin.x - CANVAS_PADDING,
+    y: client.y - surfaceOrigin.y - CANVAS_PADDING,
+  }
+}
+
+/** Model coordinates never depend on viewport size. */
+export function nonnegativePosition(position: Point): Point {
+  return { x: Math.max(0, position.x), y: Math.max(0, position.y) }
+}
+
+/** Use real SVG bounds when available; the fallback also works without browser layout. */
+export function canvasSize(
+  items: readonly CanvasItem[],
+  viewport: CanvasSize,
+  measured?: { right: number; bottom: number },
+  rename?: { right: number; bottom: number },
+): CanvasSize {
+  let right = 0
+  let bottom = 0
+  for (const { kind, label, position } of items) {
+    const { w, h } = sizeOf(kind)
+    right = Math.max(right, position.x + w + 10 + Array.from(label).length * 14)
+    bottom = Math.max(bottom, position.y + h)
+  }
+  if (measured) {
+    right = measured.right
+    bottom = measured.bottom
+  }
+  return {
+    w: Math.ceil(Math.max(viewport.w, Math.max(right, rename?.right ?? 0) + 2 * CANVAS_PADDING)),
+    h: Math.ceil(Math.max(viewport.h, Math.max(bottom, rename?.bottom ?? 0) + 2 * CANVAS_PADDING)),
   }
 }

@@ -1,8 +1,11 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { createEvent, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FehlerbaumEditor } from './FehlerbaumEditor'
 import { FaultTree } from './model'
+import { CANVAS_PADDING } from './geometry'
+import { DRAG_MIME } from './Sidebar'
+import { createEmptyProject, fromJSON, toJSON } from '../core'
 
 function addViaSidebar(name: string) {
   return userEvent.dblClick(screen.getByText(name))
@@ -149,14 +152,14 @@ describe('FehlerbaumEditor', () => {
     })
   })
 
-  describe('Begrenzung der Zeichenfläche', () => {
+  describe('Wachsende Zeichenfläche', () => {
     function mockCanvasSize(width: number, height: number) {
       vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(width)
       vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(height)
     }
     afterEach(() => vi.restoreAllMocks())
 
-    it('hält ein über den rechten und unteren Rand gezogenes Element sichtbar', () => {
+    it('erweitert die Fläche statt ein Element am Viewportrand zu begrenzen', () => {
       mockCanvasSize(200, 200)
       const tree = new FaultTree()
       const oder = tree.create('oder', { x: 10, y: 10 })
@@ -168,7 +171,10 @@ describe('FehlerbaumEditor', () => {
       })
       fireEvent.pointerMove(window, { clientX: 900, clientY: 900 })
       fireEvent.pointerUp(window, { clientX: 900, clientY: 900 })
-      expect(tree.layout.get(oder.id)).toEqual({ x: 200 - 72, y: 200 - 64 })
+      expect(tree.layout.get(oder.id)).toEqual({ x: 860, y: 860 })
+      const surface = screen.getByRole('region', { name: 'Fehlerbaum-Zeichenfläche' }).querySelector('.ft-surface') as HTMLElement
+      expect(parseFloat(surface.style.width)).toBeGreaterThan(860 + 72)
+      expect(parseFloat(surface.style.height)).toBeGreaterThan(860 + 64)
     })
 
     it('hält ein über den linken und oberen Rand gezogenes Element sichtbar', () => {
@@ -186,14 +192,101 @@ describe('FehlerbaumEditor', () => {
       expect(tree.layout.get(oder.id)).toEqual({ x: 0, y: 0 })
     })
 
-    it('setzt per Doppelklick eingefügte Elemente innerhalb der Fläche ab', async () => {
+    it('erweitert auch eine kleine Fläche für per Doppelklick eingefügte Elemente', async () => {
       mockCanvasSize(100, 100)
       const tree = new FaultTree()
       render(<FehlerbaumEditor tree={tree} />)
       await userEvent.dblClick(screen.getByText('UND-Verknüpfung'))
       const position = tree.layout.get(tree.all()[0].id)!
-      expect(position.x).toBeLessThanOrEqual(100 - 72)
-      expect(position.y).toBeLessThanOrEqual(100 - 64)
+      expect(position).toEqual({ x: 40, y: 40 })
     })
   })
+  describe('Bedienung nach dem Scrollen', () => {
+    function setup(tree: FaultTree) {
+      const rendered = render(<FehlerbaumEditor tree={tree} />)
+      const viewport = screen.getByRole('region', { name: 'Fehlerbaum-Zeichenfläche' })
+      const surface = viewport.querySelector('.ft-surface') as HTMLElement
+      viewport.scrollLeft = 300
+      viewport.scrollTop = 200
+      vi.spyOn(surface, 'getBoundingClientRect').mockImplementation(() => ({
+        left: 101 - viewport.scrollLeft, top: 51 - viewport.scrollTop,
+        x: 101 - viewport.scrollLeft, y: 51 - viewport.scrollTop,
+        width: 1600, height: 1200, right: 1701 - viewport.scrollLeft,
+        bottom: 1251 - viewport.scrollTop, toJSON: () => ({}),
+      }))
+      return { ...rendered, viewport, surface }
+    }
+
+    it('platziert einen Drop in Modellkoordinaten und erweitert den Canvas', () => {
+      const tree = new FaultTree()
+      const { viewport } = setup(tree)
+      const drop = createEvent.drop(viewport)
+      Object.defineProperties(drop, {
+        clientX: { value: 225 }, clientY: { value: 175 },
+        dataTransfer: { value: { getData: (type: string) => type === DRAG_MIME ? 'oder' : '' } },
+      })
+      fireEvent(viewport, drop)
+      expect(tree.layout.get(tree.all()[0].id)).toEqual({ x: 364, y: 268 })
+    })
+
+    it('berücksichtigt Scrollen während des Verschiebens ohne Koordinatensprung', () => {
+      const tree = new FaultTree()
+      const node = tree.create('oder', { x: 500, y: 500 })
+      const { viewport, container } = setup(tree)
+      fireEvent.pointerDown(container.querySelector('.ft-element')!, { button: 0, clientX: 200, clientY: 150 })
+      viewport.scrollLeft = 450
+      viewport.scrollTop = 250
+      fireEvent.scroll(viewport)
+      expect(tree.layout.get(node.id)).toEqual({ x: 650, y: 550 })
+      fireEvent.pointerMove(window, { clientX: 220, clientY: 170 })
+      fireEvent.pointerUp(window, { clientX: 220, clientY: 170 })
+      expect(tree.layout.get(node.id)).toEqual({ x: 670, y: 570 })
+      const restored = FaultTree.fromProject(fromJSON(toJSON(tree.toProject(createEmptyProject('Scrolltest')))))
+      expect(restored.layout.get(node.id)).toEqual({ x: 670, y: 570 })
+    })
+
+    it('führt Vorschau und Verbindung nach Scrollen an die richtigen Stubs', () => {
+      const tree = new FaultTree()
+      const gate = tree.create('oder', { x: 500, y: 350 })
+      const node = tree.create('standardeingang', { x: 500, y: 500 })
+      const { viewport, container } = setup(tree)
+      const out = container.querySelector(`[data-stub="out"][data-element-id="${node.id}"]`)!
+      const input = container.querySelector(`[data-stub="in"][data-element-id="${gate.id}"]`)!
+      fireEvent.pointerDown(out, { button: 0, clientX: 200, clientY: 150 })
+      fireEvent.pointerMove(window, { clientX: 225, clientY: 175 })
+      expect(container.querySelector('.pending')).toHaveAttribute('d', 'M 528 500 C 528 400, 400 400, 400 300')
+      viewport.scrollLeft += 20
+      viewport.scrollTop += 30
+      fireEvent.scroll(viewport)
+      expect(container.querySelector('.pending')).toHaveAttribute('d', 'M 528 500 C 528 415, 420 415, 420 330')
+      document.elementFromPoint = () => input
+      fireEvent.pointerUp(window, { clientX: 225, clientY: 175 })
+      expect(gate.nodes).toEqual([node])
+    })
+
+    it('hält die Umbenennung beim Modell und nicht an Viewportkoordinaten', () => {
+      const tree = new FaultTree()
+      tree.create('standardeingang', { x: 500, y: 500 })
+      const { container, surface } = setup(tree)
+      fireEvent.doubleClick(container.querySelector('.ft-element')!)
+      const input = screen.getByRole('textbox')
+      expect(input.parentElement).toBe(surface)
+      expect(input).toHaveStyle({ left: `${CANVAS_PADDING + 500 + 56 + 6}px`, top: `${CANVAS_PADDING + 500 + 28 - 14}px` })
+      fireEvent.change(input, { target: { value: 'Sensor gescrollt' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      expect(tree.all()[0].label).toBe('Sensor gescrollt')
+    })
+
+    it('verändert Modellpositionen beim Resize und erneutem Öffnen nicht', () => {
+      const tree = new FaultTree()
+      const node = tree.create('oder', { x: 1400, y: 900 })
+      const first = render(<FehlerbaumEditor tree={tree} />)
+      fireEvent(window, new Event('resize'))
+      expect(tree.layout.get(node.id)).toEqual({ x: 1400, y: 900 })
+      first.unmount()
+      render(<FehlerbaumEditor tree={tree} />)
+      expect(tree.layout.get(node.id)).toEqual({ x: 1400, y: 900 })
+    })
+  })
+
 })
