@@ -4,6 +4,8 @@ Eine Software für Safety Engineering mit drei Reitern: **Fehlerbaumanalyse**, *
 
 Das Projekt entsteht im Rahmen des Praktikums Betriebssicherheit am Institut für Echtzeitsysteme und Softwaretechnik.
 
+**Live:** [derkrembold.github.io/safety](https://derkrembold.github.io/safety/) — wird bei jedem Merge auf `master` automatisch neu deployed (Issue #31).
+
 ## Konzept und Anforderungen
 
 - [`Konzept.md`](Konzept.md) — Gesamtkonzept: Plattform, UI-Prinzip, Berechnungsgrundlagen, Spielregeln für die Mitarbeit
@@ -24,6 +26,12 @@ npm run build   # Typecheck + Produktions-Build
 
 Die interne BDD-Berechnung aus Issue #6 ist in [`docs/bdd.md`](docs/bdd.md)
 mit Schnittstellen, Modellannahmen und numerischen Grenzen beschrieben.
+
+## Deployment (Issue #31)
+
+Kein eigenes Backend (siehe `Konzept.md`, Abschnitt "Plattform") — Projektdateien und Debug-Logs entstehen ausschließlich lokal im Browser (Export/Import als Datei), nie auf einem Server. Deshalb reicht reines statisches Hosting: `.github/workflows/deploy.yml` baut bei jedem Push auf `master` (`npm ci`, `npm run lint`, `npm test`, `npm run build`) und veröffentlicht `dist/` auf GitHub Pages. Schlägt Lint, Test oder Build fehl, deployt nichts.
+
+`vite.config.ts` setzt `base: '/safety/'` für den Produktions-Build **und** `npm run preview` (beide liefern `dist/`, dessen Assets bereits unter `/safety/` liegen), über `command === 'build' || isPreview`. `npm run dev` bleibt davon unberührt und läuft weiterhin unter `/`. Vorher wurde nur `command === 'build'` geprüft — `npm run preview` lief dann unter `/`, während die gebauten Assets `/safety/`-Pfade referenzierten, sodass z. B. das JS unter dem falschen Pfad als HTML-Fallback statt als `text/javascript` ausgeliefert wurde (Codex-Review, PR #33).
 
 ## Design (Issue #20)
 
