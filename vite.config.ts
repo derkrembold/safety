@@ -10,8 +10,11 @@ try { commitId = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }
   // Source archives may not contain Git metadata.
 }
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
+  // GitHub Pages serves the repo under /safety/, not the domain root (issue #31).
+  // Only applied to the production build, so `npm run dev` keeps serving at `/`.
+  base: command === 'build' ? '/safety/' : '/',
   define: {
     __APP_VERSION__: JSON.stringify(version),
     __COMMIT_ID__: JSON.stringify(commitId),
@@ -21,4 +24,4 @@ export default defineConfig({
     globals: true,
     setupFiles: './src/test/setup.ts',
   },
-});
+}));
