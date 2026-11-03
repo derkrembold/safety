@@ -10,11 +10,13 @@ try { commitId = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }
   // Source archives may not contain Git metadata.
 }
 
-export default defineConfig(({ command }) => ({
+export default defineConfig(({ command, isPreview }) => ({
   plugins: [react()],
   // GitHub Pages serves the repo under /safety/, not the domain root (issue #31).
-  // Only applied to the production build, so `npm run dev` keeps serving at `/`.
-  base: command === 'build' ? '/safety/' : '/',
+  // `npm run preview` also serves dist/, whose assets are already built under /safety/,
+  // so it needs the same base — only `command === 'build'` missed that (Codex review,
+  // PR #33). `npm run dev` is unaffected either way and keeps serving at `/`.
+  base: command === 'build' || isPreview ? '/safety/' : '/',
   define: {
     __APP_VERSION__: JSON.stringify(version),
     __COMMIT_ID__: JSON.stringify(commitId),

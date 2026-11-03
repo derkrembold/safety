@@ -31,7 +31,7 @@ mit Schnittstellen, Modellannahmen und numerischen Grenzen beschrieben.
 
 Kein eigenes Backend (siehe `Konzept.md`, Abschnitt "Plattform") — Projektdateien und Debug-Logs entstehen ausschließlich lokal im Browser (Export/Import als Datei), nie auf einem Server. Deshalb reicht reines statisches Hosting: `.github/workflows/deploy.yml` baut bei jedem Push auf `master` (`npm ci`, `npm run lint`, `npm test`, `npm run build`) und veröffentlicht `dist/` auf GitHub Pages. Schlägt Lint, Test oder Build fehl, deployt nichts.
 
-`vite.config.ts` setzt `base: '/safety/'` **nur für den Produktions-Build** (`command === 'build'`), da GitHub Pages das Repo unter `/safety/` statt am Domain-Root ausliefert. `npm run dev` bleibt davon unberührt und läuft weiterhin unter `/`.
+`vite.config.ts` setzt `base: '/safety/'` für den Produktions-Build **und** `npm run preview` (beide liefern `dist/`, dessen Assets bereits unter `/safety/` liegen), über `command === 'build' || isPreview`. `npm run dev` bleibt davon unberührt und läuft weiterhin unter `/`. Vorher wurde nur `command === 'build'` geprüft — `npm run preview` lief dann unter `/`, während die gebauten Assets `/safety/`-Pfade referenzierten, sodass z. B. das JS unter dem falschen Pfad als HTML-Fallback statt als `text/javascript` ausgeliefert wurde (Codex-Review, PR #33).
 
 ## Design (Issue #20)
 
