@@ -3,9 +3,9 @@ import './FehlerbaumEditor.css'
 import { ElementGlyph } from './ElementGlyph'
 import {
   CANVAS_PADDING,
+  canvasOrigin,
   canvasPoint,
   canvasSize,
-  nonnegativePosition,
   connectionPath,
   inputAnchor,
   outputAnchor,
@@ -116,6 +116,17 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
   const addCount = useRef(0)
   const cancelTracking = useRef<(() => void) | null>(null)
 
+  const elements = tree.all()
+  const connections = tree.connections()
+  const items = elements.map((element) => ({
+    kind: element.kind,
+    label: element.label,
+    position: tree.layout.get(element.id)!,
+  }))
+  /** Smallest x/y across all elements; content above/left of (0,0) shifts the drawing. */
+  const origin = canvasOrigin(items)
+  const originRef = useRef(origin)
+
   /** Beendet ein laufendes Ziehen (Verschieben oder Verbinden), ohne es abzuschließen. */
   const abortTracking = useCallback(() => {
     cancelTracking.current?.()
@@ -173,6 +184,17 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
     setMeasuredBounds((previous) => previous?.right === next.right && previous.bottom === next.bottom ? previous : next)
   }, [tree, revision, viewport])
 
+  // Content growing above/left shifts the drawing by the same amount the surface grows,
+  // so without this the viewport would visibly jump; compensate by scrolling along with it.
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current
+    if (canvas) {
+      canvas.scrollLeft += originRef.current.x - origin.x
+      canvas.scrollTop += originRef.current.y - origin.y
+    }
+    originRef.current = { x: origin.x, y: origin.y }
+  }, [origin.x, origin.y])
+
   useEffect(() => {
     const redraw = () => setRevision((revision) => revision + 1)
     document.fonts?.addEventListener('loadingdone', redraw)
@@ -187,21 +209,21 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
 
   function toCanvas(clientX: number, clientY: number): Point {
     const rect = surfaceRef.current!.getBoundingClientRect()
-    return canvasPoint({ x: clientX, y: clientY }, { x: rect.left, y: rect.top })
+    return canvasPoint({ x: clientX, y: clientY }, { x: rect.left, y: rect.top }, origin)
   }
 
   function addElement(kind: ElementKind, center?: Point) {
     const { w, h } = sizeOf(kind)
     let position: Point
     if (center) {
-      position = { x: Math.max(0, center.x - w / 2), y: Math.max(0, center.y - h / 2) }
+      position = { x: center.x - w / 2, y: center.y - h / 2 }
     } else {
       const step = addCount.current++ % 8
       const canvas = canvasRef.current!
-      position = { x: canvas.scrollLeft + 40 + step * 28, y: canvas.scrollTop + 40 + step * 28 }
+      position = { x: canvas.scrollLeft + origin.x + 40 + step * 28, y: canvas.scrollTop + origin.y + 40 + step * 28 }
     }
     editorAction(tree, 'fault-tree-element-created', [], () => {
-      const element = tree.create(kind, nonnegativePosition(position))
+      const element = tree.create(kind, position)
       setSelection({ type: 'element', id: element.id })
       refresh()
       return [element.id]
@@ -246,26 +268,25 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
   function startMove(event: React.PointerEvent, id: string) {
     if (event.button !== 0) return
     setSelection({ type: 'element', id })
-    const origin = tree.layout.get(id)!
+    const startPosition = tree.layout.get(id)!
     const start = toCanvas(event.clientX, event.clientY)
     startTracking(
       event.nativeEvent,
       (move) => {
         editorAction(tree, 'fault-tree-element-moved', [id], () => {
-          tree.layout.set(
-            id,
-            nonnegativePosition({
-              x: origin.x + toCanvas(move.clientX, move.clientY).x - start.x,
-              y: origin.y + toCanvas(move.clientX, move.clientY).y - start.y,
-            }),
-          )
+          // No lower bound: dragging past the top/left edge grows the canvas in that
+          // direction too, same as the already-unbounded growth to the right/bottom.
+          tree.layout.set(id, {
+            x: startPosition.x + toCanvas(move.clientX, move.clientY).x - start.x,
+            y: startPosition.y + toCanvas(move.clientX, move.clientY).y - start.y,
+          })
           refresh()
           return false // Pointer movement is not a completed domain action.
         })
       },
       () => {
         const position = tree.layout.get(id)
-        if (tree.get(id) && position && (position.x !== origin.x || position.y !== origin.y)) {
+        if (tree.get(id) && position && (position.x !== startPosition.x || position.y !== startPosition.y)) {
           editorAction(tree, 'fault-tree-element-moved', [id], () => true)
         }
       },
@@ -331,19 +352,18 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
     addElement(kind, toCanvas(event.clientX, event.clientY))
   }
 
-  const elements = tree.all()
-  const connections = tree.connections()
   const editedElement = editing ? tree.get(editing.id) : undefined
   const editedPosition = editing ? tree.layout.get(editing.id) : undefined
 
   const surfaceSize = canvasSize(
-    elements.map((element) => ({ kind: element.kind, label: element.label, position: tree.layout.get(element.id)! })),
+    items,
     viewport,
     measuredBounds,
     editedElement && editedPosition ? {
       right: editedPosition.x + sizeOf(editedElement.kind).w + 6 + 160,
       bottom: editedPosition.y + sizeOf(editedElement.kind).h / 2 + 20,
     } : undefined,
+    origin,
   )
 
   return (
@@ -374,7 +394,7 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
                   }}
                 />
 
-                <g ref={drawingRef} transform={`translate(${CANVAS_PADDING} ${CANVAS_PADDING})`}>
+                <g ref={drawingRef} transform={`translate(${CANVAS_PADDING - origin.x} ${CANVAS_PADDING - origin.y})`}>
                   {connections.map(({ childId, parentId }) => {
                     const child = tree.get(childId)!
                     const parent = tree.get(parentId)!
@@ -443,7 +463,7 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
                   })}
 
                 </g>
-                <g transform={`translate(${CANVAS_PADDING} ${CANVAS_PADDING})`}>
+                <g transform={`translate(${CANVAS_PADDING - origin.x} ${CANVAS_PADDING - origin.y})`}>
                   {pending && <PendingLine tree={tree} pending={pending} />}
                 </g>
               </svg>
@@ -454,8 +474,8 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
                   autoFocus
                   value={editing.value}
                   style={{
-                    left: CANVAS_PADDING + editedPosition.x + sizeOf(editedElement.kind).w + 6,
-                    top: CANVAS_PADDING + editedPosition.y + sizeOf(editedElement.kind).h / 2 - 14,
+                    left: CANVAS_PADDING - origin.x + editedPosition.x + sizeOf(editedElement.kind).w + 6,
+                    top: CANVAS_PADDING - origin.y + editedPosition.y + sizeOf(editedElement.kind).h / 2 - 14,
                   }}
                   onChange={(event) => setEditing({ id: editing.id, value: event.target.value })}
                   onFocus={(event) => event.target.select()}

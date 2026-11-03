@@ -1,14 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { CANVAS_PADDING, canvasPoint, canvasSize, nonnegativePosition } from './geometry'
+import { CANVAS_PADDING, canvasOrigin, canvasPoint, canvasSize } from './geometry'
 
 describe('scrollable canvas geometry', () => {
   it('uses the surface rectangle, including border and scroll offsets, exactly once', () => {
     expect(canvasPoint({ x: 225, y: 175 }, { x: -199, y: -149 })).toEqual({ x: 400, y: 300 })
   })
 
-  it('keeps model positions nonnegative without restricting them to a viewport', () => {
-    expect(nonnegativePosition({ x: 5000, y: 4000 })).toEqual({ x: 5000, y: 4000 })
-    expect(nonnegativePosition({ x: -30, y: -5 })).toEqual({ x: 0, y: 0 })
+  it('shifts canvas points by the current origin when content grows above/left of it', () => {
+    expect(canvasPoint({ x: 225, y: 175 }, { x: -199, y: -149 }, { x: -50, y: -30 })).toEqual({ x: 350, y: 270 })
+  })
+
+  describe('canvasOrigin', () => {
+    it('stays at the model origin when nothing sits above or left of it', () => {
+      expect(canvasOrigin([])).toEqual({ x: 0, y: 0 })
+      expect(canvasOrigin([{ position: { x: 40, y: 40 } }])).toEqual({ x: 0, y: 0 })
+    })
+
+    it('tracks the smallest coordinate across all items, independently per axis', () => {
+      expect(canvasOrigin([
+        { position: { x: 40, y: -20 } },
+        { position: { x: -70, y: 40 } },
+      ])).toEqual({ x: -70, y: -20 })
+    })
   })
 
   it('fits a small tree without artificial overflow', () => {
@@ -26,5 +39,16 @@ describe('scrollable canvas geometry', () => {
   it('uses measured SVG text bounds and includes an active rename input', () => {
     expect(canvasSize([], { w: 200, h: 200 }, { right: 1600.5, bottom: 900 }, { right: 1800, bottom: 800 }))
       .toEqual({ w: 1848, h: 948 })
+  })
+
+  it('grows for content above/left of the model origin too, symmetrically to the right/bottom', () => {
+    const items = [
+      { kind: 'standardeingang' as const, label: 'Sensor', position: { x: -1000, y: 40 } },
+      { kind: 'oder' as const, label: 'TOP', position: { x: 40, y: 40 } },
+    ]
+    const origin = canvasOrigin(items)
+    expect(origin).toEqual({ x: -1000, y: 0 })
+    expect(canvasSize(items, { w: 800, h: 600 }, undefined, undefined, origin).w)
+      .toBe(40 + 72 + 10 + 3 * 14 - origin.x + 2 * CANVAS_PADDING)
   })
 })
