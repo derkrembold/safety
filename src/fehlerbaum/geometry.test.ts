@@ -51,4 +51,16 @@ describe('scrollable canvas geometry', () => {
     expect(canvasSize(items, { w: 800, h: 600 }, undefined, undefined, origin).w)
       .toBe(40 + 72 + 10 + 3 * 14 - origin.x + 2 * CANVAS_PADDING)
   })
+
+  it('still grows for a single element dragged far above/left, not just when a second one anchors the other side', () => {
+    // Regression: right/bottom must float a fixed floor at 0, mirroring canvasOrigin's
+    // ceiling at 0 — otherwise a lone item is both ends of the span, right - origin.x stays
+    // roughly constant (its own footprint), and the canvas never appears to need to grow.
+    const items = [{ kind: 'oder' as const, label: 'TOP', position: { x: -2000, y: -2000 } }]
+    const origin = canvasOrigin(items)
+    expect(origin).toEqual({ x: -2000, y: -2000 })
+    const size = canvasSize(items, { w: 800, h: 600 }, undefined, undefined, origin)
+    expect(size.w).toBeGreaterThan(800)
+    expect(size.h).toBeGreaterThan(600)
+  })
 })

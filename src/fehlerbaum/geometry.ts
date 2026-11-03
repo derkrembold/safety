@@ -61,11 +61,15 @@ export function canvasOrigin(items: readonly { position: Point }[]): Point {
   return { x, y }
 }
 
-function maxDefined(...values: (number | undefined)[]): number {
-  return values.reduce<number>((max, value) => value === undefined ? max : Math.max(max, value), -Infinity)
-}
-
-/** Use real SVG bounds when available; the fallback also works without browser layout. */
+/**
+ * Use real SVG bounds when available; the fallback also works without browser layout.
+ *
+ * `right`/`bottom` start at 0 — the mirror image of `canvasOrigin` starting at 0 — so a
+ * lone element dragged far above/left still visibly needs more space: without this floor,
+ * the same lone element would define both ends, and its own excursion would cancel out of
+ * `right - origin.x` instead of growing it (found live: a single freshly placed element
+ * didn't grow the canvas when dragged past the edge, while a second element fixed it).
+ */
 export function canvasSize(
   items: readonly CanvasItem[],
   viewport: CanvasSize,
@@ -73,8 +77,8 @@ export function canvasSize(
   rename?: { right: number; bottom: number },
   origin: Point = { x: 0, y: 0 },
 ): CanvasSize {
-  let right = -Infinity
-  let bottom = -Infinity
+  let right = 0
+  let bottom = 0
   for (const { kind, label, position } of items) {
     const { w, h } = sizeOf(kind)
     right = Math.max(right, position.x + w + 10 + Array.from(label).length * 14)
@@ -85,7 +89,7 @@ export function canvasSize(
     bottom = measured.bottom
   }
   return {
-    w: Math.ceil(Math.max(viewport.w, maxDefined(right, rename?.right) - origin.x + 2 * CANVAS_PADDING)),
-    h: Math.ceil(Math.max(viewport.h, maxDefined(bottom, rename?.bottom) - origin.y + 2 * CANVAS_PADDING)),
+    w: Math.ceil(Math.max(viewport.w, Math.max(right, rename?.right ?? 0) - origin.x + 2 * CANVAS_PADDING)),
+    h: Math.ceil(Math.max(viewport.h, Math.max(bottom, rename?.bottom ?? 0) - origin.y + 2 * CANVAS_PADDING)),
   }
 }
