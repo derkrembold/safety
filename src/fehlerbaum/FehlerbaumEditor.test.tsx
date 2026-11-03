@@ -177,6 +177,28 @@ describe('FehlerbaumEditor', () => {
       expect(parseFloat(surface.style.height)).toBeGreaterThan(860 + 64)
     })
 
+    it('erweitert die Fläche auch für eine einzelne, frisch platzierte Komponente (live gefundene Regression)', () => {
+      // Mit nur einer Komponente ist sie gleichzeitig linkes/oberes UND rechtes/unteres
+      // Extremum; ohne Anker bei 0 auf der rechten/unteren Seite hebt sich ihre eigene
+      // Verschiebung gegen die Ursprungsverschiebung auf, und die Fläche wächst nie.
+      mockCanvasSize(200, 200)
+      const tree = new FaultTree()
+      const oder = tree.create('oder', { x: 60, y: 60 })
+      render(<FehlerbaumEditor tree={tree} />)
+      const region = screen.getByRole('region', { name: 'Fehlerbaum-Zeichenfläche' })
+      fireEvent.pointerDown(screen.getByText('ODER 1').closest('g')!, {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+      })
+      fireEvent.pointerMove(window, { clientX: -700, clientY: -700 })
+      fireEvent.pointerUp(window, { clientX: -700, clientY: -700 })
+      expect(tree.layout.get(oder.id)).toEqual({ x: -740, y: -740 })
+      const surface = region.querySelector('.ft-surface') as HTMLElement
+      expect(parseFloat(surface.style.width)).toBeGreaterThan(400)
+      expect(parseFloat(surface.style.height)).toBeGreaterThan(400)
+    })
+
     it('erweitert die Fläche auch über den linken und oberen Rand hinaus und gleicht den Scrollversatz aus', () => {
       mockCanvasSize(200, 200)
       const tree = new FaultTree()
