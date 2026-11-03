@@ -88,8 +88,13 @@ export function canvasSize(
     right = measured.right
     bottom = measured.bottom
   }
+  // Explicit 0 floor: `rename`, when active, overrides the `?? 0` fallback with its own
+  // (possibly negative) bound, and `measured` can likewise replace right/bottom with a real,
+  // negative SVG extent — either alone still floors at 0 via the other term, but together
+  // neither term does, and the anchor this mirrors from canvasOrigin would silently vanish
+  // (Codex review, PR #36).
   return {
-    w: Math.ceil(Math.max(viewport.w, Math.max(right, rename?.right ?? 0) - origin.x + 2 * CANVAS_PADDING)),
-    h: Math.ceil(Math.max(viewport.h, Math.max(bottom, rename?.bottom ?? 0) - origin.y + 2 * CANVAS_PADDING)),
+    w: Math.ceil(Math.max(viewport.w, Math.max(0, right, rename?.right ?? 0) - origin.x + 2 * CANVAS_PADDING)),
+    h: Math.ceil(Math.max(viewport.h, Math.max(0, bottom, rename?.bottom ?? 0) - origin.y + 2 * CANVAS_PADDING)),
   }
 }

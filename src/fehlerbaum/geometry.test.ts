@@ -63,4 +63,16 @@ describe('scrollable canvas geometry', () => {
     expect(size.w).toBeGreaterThan(800)
     expect(size.h).toBeGreaterThan(600)
   })
+
+  it('keeps the 0 floor even when real SVG bounds and an active rename are both negative (Codex-Regression PR #36)', () => {
+    // Measured bounds (real getBBox, browser-only) and an active rename's own bound can each
+    // be negative for a lone far-left/up element; only jsdom's unmeasured fallback happened
+    // to stay nonnegative, so this combination slipped past the prior tests.
+    const items = [{ kind: 'oder' as const, label: 'TOP', position: { x: -2000, y: -2000 } }]
+    const origin = canvasOrigin(items)
+    const measured = { right: -1876, bottom: -1936 }
+    const rename = { right: -1762, bottom: -1948 } // matches the editor's rename-input bounds formula
+    expect(canvasSize(items, { w: 800, h: 600 }, measured, undefined, origin)).toEqual({ w: 2048, h: 2048 })
+    expect(canvasSize(items, { w: 800, h: 600 }, measured, rename, origin)).toEqual({ w: 2048, h: 2048 })
+  })
 })
