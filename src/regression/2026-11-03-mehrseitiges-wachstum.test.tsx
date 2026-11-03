@@ -10,6 +10,16 @@
  * auf 3 Nachkommastellen gerundet (vermeidet ein Lint-Literal-Präzisionsproblem, ändert an
  * der Aussage nichts — die erwartete Größe wird aus denselben gerundeten Werten berechnet).
  *
+ * Ausgangslage: REPRÄSENTATIVER MINIMALFALL, unbestätigt (Codex-Review PR #38, von Derk
+ * nachträglich bestätigt: der reale Startzustand vor diesen 21 Aktionen war nicht sicher
+ * leer). In sich geschlossene ID-Referenzen allein beweisen keinen leeren Start — es könnten
+ * unberührte Altelemente aus einer früheren Session existiert haben, die die Zeichenfläche
+ * mitbestimmt hätten. Dieser Test rekonstruiert deshalb bewusst nur die 21 protokollierten
+ * Aktionen auf einem leeren Projekt, nicht die tatsächliche (unbekannte) Ausgangslage. Das
+ * ist für die geprüfte Eigenschaft unschädlich: zusätzliche unberührte Altelemente könnten
+ * den Platzbedarf nur noch vergrößern, nie die hier gezeigte mehrseitige Wachstumseigenschaft
+ * verschwinden lassen — aber dieser Test behauptet nicht, die reale Session exakt abzubilden.
+ *
  * Sollbeschreibung (Derk): Nach dieser Abfolge soll die Zeichenfläche sichtbar in mehrere
  * Richtungen gewachsen sein — Eingang 1 zieht den linken Rand, ODER 1 den oberen Rand ins
  * Negative, während Eingang 4 weit rechts und Eingang 2 weit unten liegen. Scrollbars müssen
@@ -37,8 +47,8 @@ describe('mehrseitiges Wachstum aus einer echten Mehr-Elemente-Session', () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(200)
     vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(200)
 
-    // Ausgangslage: leeres Projekt — der Log ist in sich geschlossen (jede referenzierte
-    // ID wird zuerst selbst per "created" angelegt).
+    // Ausgangslage: repräsentativer Minimalfall (leeres Projekt) — der reale Startzustand
+    // ist nicht bestätigt leer, siehe Herkunftskommentar oben.
     const tree = new FaultTree()
 
     // Aktionen, aus den details-Feldern des Logs, in exakter Reihenfolge.
