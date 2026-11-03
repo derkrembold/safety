@@ -38,17 +38,31 @@ export const CANVAS_PADDING = 24
 export interface CanvasSize { w: number; h: number }
 export interface CanvasItem { kind: ElementKind; label: string; position: Point }
 
-/** The scroll offset is already included in the moving surface's client rectangle. */
-export function canvasPoint(client: Point, surfaceOrigin: Point): Point {
+/**
+ * The scroll offset is already included in the moving surface's client rectangle.
+ * `origin` is the current top/left-most model coordinate (see `canvasOrigin`) — content
+ * above/left of the model's (0,0) shifts the drawing, so client points must follow it too.
+ */
+export function canvasPoint(client: Point, surfaceOrigin: Point, origin: Point = { x: 0, y: 0 }): Point {
   return {
-    x: client.x - surfaceOrigin.x - CANVAS_PADDING,
-    y: client.y - surfaceOrigin.y - CANVAS_PADDING,
+    x: client.x - surfaceOrigin.x - CANVAS_PADDING + origin.x,
+    y: client.y - surfaceOrigin.y - CANVAS_PADDING + origin.y,
   }
 }
 
-/** Model coordinates never depend on viewport size. */
-export function nonnegativePosition(position: Point): Point {
-  return { x: Math.max(0, position.x), y: Math.max(0, position.y) }
+/** The smallest x/y across all items; (0,0) unless something sits above/left of the model origin. */
+export function canvasOrigin(items: readonly { position: Point }[]): Point {
+  let x = 0
+  let y = 0
+  for (const { position } of items) {
+    x = Math.min(x, position.x)
+    y = Math.min(y, position.y)
+  }
+  return { x, y }
+}
+
+function maxDefined(...values: (number | undefined)[]): number {
+  return values.reduce<number>((max, value) => value === undefined ? max : Math.max(max, value), -Infinity)
 }
 
 /** Use real SVG bounds when available; the fallback also works without browser layout. */
@@ -57,9 +71,10 @@ export function canvasSize(
   viewport: CanvasSize,
   measured?: { right: number; bottom: number },
   rename?: { right: number; bottom: number },
+  origin: Point = { x: 0, y: 0 },
 ): CanvasSize {
-  let right = 0
-  let bottom = 0
+  let right = -Infinity
+  let bottom = -Infinity
   for (const { kind, label, position } of items) {
     const { w, h } = sizeOf(kind)
     right = Math.max(right, position.x + w + 10 + Array.from(label).length * 14)
@@ -70,7 +85,7 @@ export function canvasSize(
     bottom = measured.bottom
   }
   return {
-    w: Math.ceil(Math.max(viewport.w, Math.max(right, rename?.right ?? 0) + 2 * CANVAS_PADDING)),
-    h: Math.ceil(Math.max(viewport.h, Math.max(bottom, rename?.bottom ?? 0) + 2 * CANVAS_PADDING)),
+    w: Math.ceil(Math.max(viewport.w, maxDefined(right, rename?.right) - origin.x + 2 * CANVAS_PADDING)),
+    h: Math.ceil(Math.max(viewport.h, maxDefined(bottom, rename?.bottom) - origin.y + 2 * CANVAS_PADDING)),
   }
 }
