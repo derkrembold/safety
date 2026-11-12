@@ -107,12 +107,13 @@ function editorAction(
   }
 }
 
-export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onParametersSave }: {
+export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onParametersSave, results }: {
   tree: FaultTree
   onChange?: (tree: FaultTree) => void
   project?: Project
   onComponentSave?: (component: ComponentDefinition) => void
   onParametersSave?: (parameters: ProjectParameters) => void
+  results?: React.ReactNode
 }) {
   // Der Baum ist ein veränderbares Objekt; nach jeder Änderung neu zeichnen.
   const [revision, setRevision] = useState(0)
@@ -395,7 +396,7 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
   )
 
   return (
-    <div className="ft-editor">
+    <div className={results ? 'ft-editor with-results' : 'ft-editor'}>
       <div className="ft-canvas-column">
         <div className="ft-canvas-frame">
           <div
@@ -541,6 +542,7 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
           <kbd>Ziehen</kbd> verschieben · <kbd>Stub ziehen</kbd> verbinden ·{' '}
           <kbd>Doppelklick</kbd> umbenennen · <kbd>Entf</kbd> löschen · <kbd>Esc</kbd> abwählen
         </p>
+        {results}
       </div>
       <div className="ft-side-column">
         <Sidebar onAdd={(kind) => addElement(kind)} />

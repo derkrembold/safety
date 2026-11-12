@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "name": "Ergebnisbeispiel – zwei Komponenten",
+  "createdAt": "2026-11-12T10:00:00.000Z",
+  "modifiedAt": "2026-11-12T10:00:00.000Z",
+  "parameters": { "missionTimeHours": 1000, "testIntervalHours": 8760 },
+  "components": {
+    "sensor": { "id": "sensor", "name": "Sensor", "failureRate": 0.000001, "repairRate": 0.1 },
+    "ventil": { "id": "ventil", "name": "Ventil", "failureRate": 0.000002, "repairRate": 0.05 }
+  },
+  "diagrams": {
+    "fehlerbaum": {
+      "nodes": {
+        "top": { "id": "top", "kind": "or", "label": "Systemausfall" },
+        "s": { "id": "s", "kind": "basicEvent", "componentRef": "sensor", "label": "Sensor" },
+        "v": { "id": "v", "kind": "basicEvent", "componentRef": "ventil", "label": "Ventil" }
+      },
+      "edges": [
+        { "id": "es", "from": "top", "to": "s" },
+        { "id": "ev", "from": "top", "to": "v" }
+      ],
+      "layout": { "top": { "x": 220, "y": 40 }, "s": { "x": 80, "y": 180 }, "v": { "x": 360, "y": 180 } },
+      "provenance": { "origin": "authored", "stale": false }
+    }
+  }
+}
