@@ -14,6 +14,9 @@ import {
 import { Standardeingang, type ConnectError, type ElementKind, type FaultTree, type Point } from './model'
 import { appLogger } from '../debug/appLogger'
 import { DRAG_MIME, Sidebar } from './Sidebar'
+import { ComponentParameters, ProjectParameterPanel } from './ParameterPanels'
+import { getComponent } from '../core/registry'
+import type { ComponentDefinition, Project, ProjectParameters } from '../project/types'
 
 type StubKind = 'out' | 'in'
 
@@ -104,7 +107,13 @@ function editorAction(
   }
 }
 
-export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange?: (tree: FaultTree) => void }) {
+export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onParametersSave }: {
+  tree: FaultTree
+  onChange?: (tree: FaultTree) => void
+  project?: Project
+  onComponentSave?: (component: ComponentDefinition) => void
+  onParametersSave?: (parameters: ProjectParameters) => void
+}) {
   // Der Baum ist ein veränderbares Objekt; nach jeder Änderung neu zeichnen.
   const [revision, setRevision] = useState(0)
   const refresh = useCallback(() => {
@@ -112,6 +121,10 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
     onChange?.(tree)
   }, [tree, onChange])
   const [selection, setSelection] = useState<Selection>(null)
+  const selectedElement = selection?.type === 'element' ? tree.get(selection.id) : undefined
+  const selectedComponent = project && selectedElement instanceof Standardeingang
+    ? getComponent(project.components, selectedElement.componentRef)
+    : undefined
   const [pending, setPending] = useState<PendingConnection | null>(null)
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -266,7 +279,9 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.target instanceof HTMLInputElement) return
+      if (event.target instanceof HTMLElement && (
+        event.target.closest('input, textarea, select') || event.target.isContentEditable
+      )) return
       if (event.key === 'Delete' || event.key === 'Backspace') {
         deleteSelection()
       } else if (event.key === 'Escape') {
@@ -443,6 +458,16 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
                       <g
                         key={element.id}
                         className={selected ? 'ft-element selected' : 'ft-element'}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`Element ${element.label} auswählen`}
+                        aria-pressed={selected}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            setSelection({ type: 'element', id: element.id })
+                          }
+                        }}
                         transform={`translate(${position.x} ${position.y})`}
                         onPointerDown={(event) => startMove(event, element.id)}
                         onDoubleClick={() => setEditing({ id: element.id, value: element.label })}
@@ -484,6 +509,7 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
               {editing && editedElement && editedPosition && (
                 <input
                   className="ft-rename"
+                  aria-label="Elementbeschriftung bearbeiten"
                   autoFocus
                   value={editing.value}
                   style={{
@@ -516,7 +542,15 @@ export function FehlerbaumEditor({ tree, onChange }: { tree: FaultTree; onChange
           <kbd>Doppelklick</kbd> umbenennen · <kbd>Entf</kbd> löschen · <kbd>Esc</kbd> abwählen
         </p>
       </div>
-      <Sidebar onAdd={(kind) => addElement(kind)} />
+      <div className="ft-side-column">
+        <Sidebar onAdd={(kind) => addElement(kind)} />
+        {selectedComponent && onComponentSave && (
+          <ComponentParameters key={selectedElement?.id} component={selectedComponent} onSave={onComponentSave} />
+        )}
+        {project && onParametersSave && (
+          <ProjectParameterPanel parameters={project.parameters} onSave={onParametersSave} />
+        )}
+      </div>
     </div>
   )
 }

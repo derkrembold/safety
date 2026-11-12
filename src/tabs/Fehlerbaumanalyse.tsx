@@ -1,6 +1,6 @@
 import { FehlerbaumEditor } from '../fehlerbaum/FehlerbaumEditor'
-import type { FaultTree } from '../fehlerbaum/model'
+import type { ComponentProps } from 'react'
 
-export function FehlerbaumanalyseTab({ tree, onChange }: { tree: FaultTree; onChange?: (tree: FaultTree) => void }) {
-  return <FehlerbaumEditor tree={tree} onChange={onChange} />
+export function FehlerbaumanalyseTab(props: ComponentProps<typeof FehlerbaumEditor>) {
+  return <FehlerbaumEditor {...props} />
 }
