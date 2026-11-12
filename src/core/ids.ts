@@ -36,3 +36,5 @@ function uuid(): string {
 export const newComponentId = (): ComponentId => asComponentId(`c-${uuid()}`)
 export const newNodeId = (): NodeId => asNodeId(`n-${uuid()}`)
 export const newEdgeId = (): EdgeId => asEdgeId(`e-${uuid()}`)
+/** Annotations are plain strings on purpose: they are neither nodes nor components. */
+export const newAnnotationId = (): string => `a-${uuid()}`

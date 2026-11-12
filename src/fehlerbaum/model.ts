@@ -1,4 +1,7 @@
-import { asNodeId, newNodeId, newComponentId, newEdgeId, type ComponentId, type DiagramNode, type Project } from '../core'
+import {
+  asNodeId, newNodeId, newComponentId, newEdgeId, newAnnotationId,
+  type Annotation, type ComponentId, type DiagramNode, type Project,
+} from '../core'
 
 export type ElementKind = 'standardeingang' | 'oder' | 'und'
 
@@ -82,9 +85,21 @@ const LABEL_PREFIX: Record<ElementKind, string> = {
   und: 'UND',
 }
 
+/**
+ * Kommentarblock: reine Textnotiz auf der Zeichenfläche. Kein Element des Baums –
+ * ohne Ports, ohne Verbindungen, ohne Einfluss auf Logik, BDD oder Berechnung.
+ */
+export interface Comment {
+  readonly id: string
+  text: string
+  position: Point
+}
+
 export class FaultTree {
   /** Position der Elemente in der Darstellung des Fehlerbaum-Reiters. */
   readonly layout = new Map<string, Point>()
+  /** Kommentarblöcke dieser Darstellung; getrennt von `elements`, siehe {@link Comment}. */
+  readonly comments = new Map<string, Comment>()
 
   private readonly elements = new Map<string, FaultTreeElement>()
   private readonly nextLabelNumber: Record<ElementKind, number> = {
@@ -116,6 +131,11 @@ export class FaultTree {
       const result = tree.connect(edge.to, edge.from)
       if (!result.ok) throw new Error(`Ungültige Fehlerbaum-Verbindung: ${result.error}`)
     }
+    for (const annotation of Object.values(diagram.annotations ?? {})) {
+      tree.comments.set(annotation.id, {
+        id: annotation.id, text: annotation.text, position: { ...annotation.position },
+      })
+    }
     return tree
   }
 
@@ -142,12 +162,17 @@ export class FaultTree {
         id: newEdgeId(), from: asNodeId(parentId), to: asNodeId(childId),
       },
     )
+    const annotations: Record<string, Annotation> = Object.create(null)
+    for (const comment of this.comments.values()) {
+      annotations[comment.id] = { id: comment.id, text: comment.text, position: { ...comment.position } }
+    }
     return {
       ...project, modifiedAt: new Date().toISOString(), components,
       diagrams: {
         ...project.diagrams,
         fehlerbaum: {
           nodes, edges, layout: Object.fromEntries(this.layout),
+          ...(this.comments.size === 0 ? {} : { annotations }),
           provenance: { origin: 'authored', stale: false },
         },
       },
@@ -180,6 +205,16 @@ export class FaultTree {
     this.elements.set(id, element)
     this.layout.set(id, position)
     return element
+  }
+
+  createComment(position: Point, text = ''): Comment {
+    const comment: Comment = { id: newAnnotationId(), text, position }
+    this.comments.set(comment.id, comment)
+    return comment
+  }
+
+  removeComment(id: string): void {
+    this.comments.delete(id)
   }
 
   /** Entfernt das Element samt seiner Verbindungen; Eingänge bleiben erhalten. */

@@ -118,6 +118,51 @@
   stroke-width: 3;
 }
 
+/* Kommentarblock: gestrichelt und flächig, damit er nicht wie Gatter oder Ereignis wirkt. */
+.ft-comment { cursor: grab; }
+.ft-comment:active { cursor: grabbing; }
+.ft-comment-box, .ft-comment-glyph {
+  fill: var(--accent-bg);
+  stroke: var(--text);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 3;
+}
+.ft-comment.selected .ft-comment-box {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+.ft-comment-lines {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+.ft-comment-text {
+  box-sizing: border-box;
+  height: 100%;
+  padding: 8px 10px;
+  overflow: hidden;
+  color: var(--text-h);
+  font: 13px/18px var(--sans);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+.ft-comment-edit {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  resize: none;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: 13px/18px var(--sans);
+}
+.ft-comment:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 .ft-label {
   fill: var(--text-h);
   font: 14px var(--sans);

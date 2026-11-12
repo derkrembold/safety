@@ -54,6 +54,19 @@ export interface Point {
 }
 
 /**
+ * A free-text note placed on one diagram's canvas.
+ *
+ * Deliberately *not* a {@link DiagramNode}: annotations live beside `nodes`, so validation,
+ * root/cycle checks, BDD construction and probabilities — which only ever walk `nodes` and
+ * `edges` — cannot mistake a note for an extra input, a root or a component identity.
+ */
+export interface Annotation {
+  readonly id: string
+  readonly text: string
+  readonly position: Point
+}
+
+/**
  * Where a diagram came from and whether it is still up to date.
  *
  * A derived diagram is marked `stale` when the source diagram it was derived from has
@@ -77,6 +90,8 @@ export interface DiagramDocument<TKind extends string = string> {
   readonly nodes: Readonly<Record<string, DiagramNode<TKind>>>
   readonly edges: readonly Edge[]
   readonly layout: Readonly<Record<string, Point>>
+  /** Optional so that project files written before comments existed stay valid. */
+  readonly annotations?: Readonly<Record<string, Annotation>>
   readonly provenance: Provenance
 }
 

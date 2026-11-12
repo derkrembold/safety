@@ -35,8 +35,22 @@ export function connectionPath(from: Point, to: Point): string {
 /** Space around the model origin and the right/bottom content bounds, including stubs. */
 export const CANVAS_PADDING = 24
 
+export const COMMENT_WIDTH = 180
+const COMMENT_MIN_HEIGHT = 56
+const COMMENT_LINE_HEIGHT = 18
+const COMMENT_CHARS_PER_LINE = 24
+
+/** Höhe eines Kommentarblocks aus Zeilenzahl und grober Umbruchschätzung (Breite ist fest). */
+export function commentSize(text: string): { w: number; h: number } {
+  const lines = text.split('\n').reduce(
+    (sum, line) => sum + Math.max(1, Math.ceil(Array.from(line).length / COMMENT_CHARS_PER_LINE)), 0)
+  return { w: COMMENT_WIDTH, h: Math.max(COMMENT_MIN_HEIGHT, lines * COMMENT_LINE_HEIGHT + 20) }
+}
+
 export interface CanvasSize { w: number; h: number }
-export interface CanvasItem { kind: ElementKind; label: string; position: Point }
+export type CanvasItem =
+  | { kind: ElementKind; label: string; position: Point }
+  | { box: { w: number; h: number }; position: Point }
 
 /**
  * The scroll offset is already included in the moving surface's client rectangle.
@@ -79,9 +93,15 @@ export function canvasSize(
 ): CanvasSize {
   let right = 0
   let bottom = 0
-  for (const { kind, label, position } of items) {
-    const { w, h } = sizeOf(kind)
-    right = Math.max(right, position.x + w + 10 + Array.from(label).length * 14)
+  for (const item of items) {
+    const { position } = item
+    if ('box' in item) {
+      right = Math.max(right, position.x + item.box.w)
+      bottom = Math.max(bottom, position.y + item.box.h)
+      continue
+    }
+    const { w, h } = sizeOf(item.kind)
+    right = Math.max(right, position.x + w + 10 + Array.from(item.label).length * 14)
     bottom = Math.max(bottom, position.y + h)
   }
   if (measured) {

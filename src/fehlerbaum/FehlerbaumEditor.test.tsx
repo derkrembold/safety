@@ -106,6 +106,114 @@ describe('FehlerbaumEditor', () => {
     expect(tree.all()[0].label).toBe('Sensor A')
   })
 
+  describe('Kommentarblock', () => {
+    const sidebar = () => screen.getByRole('complementary', { name: 'Verknüpfungselemente' })
+
+    it('steht in der Palette neben den Verknüpfungselementen', () => {
+      render(<FehlerbaumEditor tree={new FaultTree()} />)
+      expect(within(sidebar()).getByText('Kommentar')).toBeInTheDocument()
+    })
+
+    it('wird per Doppelklick eingefügt, mehrzeilig bearbeitet und als Text angezeigt', async () => {
+      const tree = new FaultTree()
+      render(<FehlerbaumEditor tree={tree} />)
+      await addViaSidebar('Kommentar')
+      expect(tree.comments.size).toBe(1)
+      expect(tree.all()).toHaveLength(0)
+      await userEvent.type(screen.getByRole('textbox', { name: 'Kommentartext bearbeiten' }), 'Zeile 1{Enter}Zeile 2')
+      await userEvent.keyboard('{Control>}{Enter}{/Control}')
+      expect([...tree.comments.values()][0].text).toBe('Zeile 1\nZeile 2')
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+      expect(screen.getByText(/Zeile 1/).textContent).toBe('Zeile 1\nZeile 2')
+    })
+
+    it('stellt HTML im Kommentartext nie als HTML dar', async () => {
+      const tree = new FaultTree()
+      tree.createComment({ x: 10, y: 10 }, '<img src=x alt="boese"><b>fett</b>')
+      const { container } = render(<FehlerbaumEditor tree={tree} />)
+      expect(screen.getByText('<img src=x alt="boese"><b>fett</b>')).toBeInTheDocument()
+      expect(container.querySelector('foreignObject img, foreignObject b')).toBeNull()
+    })
+
+    it('löscht beim Tippen nur Text, nicht den Block oder andere Elemente', async () => {
+      const tree = new FaultTree()
+      tree.create('standardeingang', { x: 300, y: 300 })
+      const comment = tree.createComment({ x: 10, y: 10 }, 'abc')
+      render(<FehlerbaumEditor tree={tree} />)
+      await userEvent.dblClick(screen.getByText('abc').closest('g')!)
+      const box = screen.getByRole('textbox', { name: 'Kommentartext bearbeiten' })
+      await userEvent.type(box, '{Backspace}{Backspace}{Delete}')
+      expect(tree.comments.has(comment.id)).toBe(true)
+      expect(tree.all()).toHaveLength(1)
+      expect(box).toHaveValue('abc'.slice(0, 1))
+    })
+
+    it('verwirft die Bearbeitung mit Esc', async () => {
+      const tree = new FaultTree()
+      const comment = tree.createComment({ x: 10, y: 10 }, 'alt')
+      render(<FehlerbaumEditor tree={tree} />)
+      await userEvent.dblClick(screen.getByText('alt').closest('g')!)
+      await userEvent.type(screen.getByRole('textbox'), ' neu{Escape}')
+      expect(tree.comments.get(comment.id)?.text).toBe('alt')
+    })
+
+    it('wird mit Entf gelöscht, wenn er ausgewählt ist', async () => {
+      const tree = new FaultTree()
+      tree.create('standardeingang', { x: 300, y: 300 })
+      const comment = tree.createComment({ x: 10, y: 10 }, 'weg damit')
+      render(<FehlerbaumEditor tree={tree} />)
+      fireEvent.pointerDown(screen.getByText('weg damit').closest('g')!, { button: 0 })
+      fireEvent.pointerUp(window)
+      await userEvent.keyboard('{Delete}')
+      expect(tree.comments.has(comment.id)).toBe(false)
+      expect(tree.all()).toHaveLength(1)
+    })
+
+    it('lässt sich per Mausziehen verschieben', () => {
+      const tree = new FaultTree()
+      const comment = tree.createComment({ x: 10, y: 10 }, 'bewege mich')
+      render(<FehlerbaumEditor tree={tree} />)
+      fireEvent.pointerDown(screen.getByText('bewege mich').closest('g')!, { button: 0, clientX: 0, clientY: 0 })
+      fireEvent.pointerMove(window, { clientX: 30, clientY: 50 })
+      fireEvent.pointerUp(window, { clientX: 30, clientY: 50 })
+      expect(tree.comments.get(comment.id)?.position).toEqual({ x: 40, y: 60 })
+    })
+
+    it('wird per Ziehen aus der Palette auf die Fläche gelegt', () => {
+      const tree = new FaultTree()
+      render(<FehlerbaumEditor tree={tree} />)
+      const canvas = screen.getByRole('region', { name: 'Fehlerbaum-Zeichenfläche' })
+      const data = new Map([[DRAG_MIME, 'kommentar']])
+      const drop = createEvent.drop(canvas)
+      Object.defineProperty(drop, 'dataTransfer', { value: { getData: (type: string) => data.get(type) ?? '' } })
+      fireEvent(canvas, drop)
+      expect(tree.comments.size).toBe(1)
+      expect(tree.all()).toHaveLength(0)
+    })
+
+    it('bietet keine Anschlussports und lässt keine Verbindung zu', () => {
+      const tree = new FaultTree()
+      const oder = tree.create('oder', { x: 100, y: 200 })
+      const comment = tree.createComment({ x: 10, y: 10 }, 'Notiz')
+      const { container } = render(<FehlerbaumEditor tree={tree} />)
+      expect(container.querySelector(`[data-element-id="${comment.id}"]`)).toBeNull()
+      expect(container.querySelectorAll('.ft-comment [data-stub]')).toHaveLength(0)
+      expect(tree.connect(comment.id, oder.id)).toEqual({ ok: false, error: 'unknown-element' })
+      expect(tree.connect(oder.id, comment.id)).toEqual({ ok: false, error: 'unknown-element' })
+    })
+
+    it('bleibt beim Datei-Roundtrip samt Text und Position erhalten', async () => {
+      const tree = new FaultTree()
+      render(<FehlerbaumEditor tree={tree} />)
+      await addViaSidebar('Kommentar')
+      await userEvent.type(screen.getByRole('textbox'), 'a{Enter}b')
+      await userEvent.keyboard('{Control>}{Enter}{/Control}')
+      const [comment] = [...tree.comments.values()]
+      const restored = FaultTree.fromProject(fromJSON(toJSON(tree.toProject(createEmptyProject('P')))))
+      expect(restored.comments.get(comment.id)).toEqual({ id: comment.id, text: 'a\nb', position: comment.position })
+    })
+  })
+
   describe('Abbrechen beim Verbinden', () => {
     function setup() {
       const tree = new FaultTree()

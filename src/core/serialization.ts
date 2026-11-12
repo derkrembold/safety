@@ -1,5 +1,5 @@
 import type { ComponentDefinition } from './component'
-import type { DiagramDocument, DiagramNode, Edge, Point, Provenance, TabId } from './diagram'
+import type { Annotation, DiagramDocument, DiagramNode, Edge, Point, Provenance, TabId } from './diagram'
 import { TAB_IDS } from './diagram'
 import { emptyDict } from './dict'
 import { asComponentId, asEdgeId, asNodeId } from './ids'
@@ -90,6 +90,15 @@ function serializeDiagram(diagram: DiagramDocument): DiagramDocument {
     layout[id] = { x: point.x, y: point.y }
   }
 
+  const annotations = emptyDict<Annotation>()
+  for (const annotation of Object.values(diagram.annotations ?? {})) {
+    annotations[annotation.id] = {
+      id: annotation.id,
+      text: annotation.text,
+      position: { x: annotation.position.x, y: annotation.position.y },
+    }
+  }
+
   return {
     nodes,
     edges: diagram.edges.map((edge) => ({
@@ -101,6 +110,7 @@ function serializeDiagram(diagram: DiagramDocument): DiagramDocument {
       ...(edge.label === undefined ? {} : { label: edge.label }),
     })),
     layout,
+    ...(Object.keys(annotations).length === 0 ? {} : { annotations }),
     provenance: {
       origin: diagram.provenance.origin,
       ...(diagram.provenance.derivedFrom === undefined
@@ -278,6 +288,29 @@ function parseDiagram(raw: Record<string, unknown>, tab: TabId): DiagramDocument
     }
   }
 
+  const annotations = emptyDict<Annotation>()
+  if (raw.annotations !== undefined) {
+    for (const [key, value] of Object.entries(record(raw.annotations, `${path}.annotations`))) {
+      const annotation = record(value, `${path}.annotations.${key}`)
+      const id = str(annotation.id, `${path}.annotations.${key}.id`)
+      if (key !== id) {
+        throw new ProjectFormatError(
+          `${path}.annotations.${key}.id is "${id}", but the dictionary key is "${key}". ` +
+            'An annotation\'s dictionary key must match its own id.',
+        )
+      }
+      const position = record(annotation.position, `${path}.annotations.${key}.position`)
+      annotations[id] = {
+        id,
+        text: str(annotation.text, `${path}.annotations.${key}.text`),
+        position: {
+          x: num(position.x, `${path}.annotations.${key}.position.x`),
+          y: num(position.y, `${path}.annotations.${key}.position.y`),
+        },
+      }
+    }
+  }
+
   const origin = str(rawProvenance.origin, `${path}.provenance.origin`)
   if (origin !== 'authored' && origin !== 'derived') {
     throw new ProjectFormatError(`${path}.provenance.origin must be "authored" or "derived".`)
@@ -293,5 +326,9 @@ function parseDiagram(raw: Record<string, unknown>, tab: TabId): DiagramDocument
     stale: rawProvenance.stale === true,
   }
 
-  return { nodes, edges, layout, provenance }
+  return {
+    nodes, edges, layout,
+    ...(Object.keys(annotations).length === 0 ? {} : { annotations }),
+    provenance,
+  }
 }

@@ -6,14 +6,16 @@ import {
   canvasOrigin,
   canvasPoint,
   canvasSize,
+  commentSize,
   connectionPath,
   inputAnchor,
   outputAnchor,
   sizeOf,
+  type CanvasItem,
 } from './geometry'
 import { Standardeingang, type ConnectError, type ElementKind, type FaultTree, type Point } from './model'
 import { appLogger } from '../debug/appLogger'
-import { DRAG_MIME, Sidebar } from './Sidebar'
+import { COMMENT_DRAG_VALUE, DRAG_MIME, Sidebar } from './Sidebar'
 import { ComponentParameters, ProjectParameterPanel } from './ParameterPanels'
 import { getComponent } from '../core/registry'
 import type { ComponentDefinition, Project, ProjectParameters } from '../project/types'
@@ -22,6 +24,7 @@ type StubKind = 'out' | 'in'
 
 type Selection =
   | { type: 'element'; id: string }
+  | { type: 'comment'; id: string }
   | { type: 'connection'; childId: string; parentId: string }
   | null
 
@@ -128,6 +131,7 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
     : undefined
   const [pending, setPending] = useState<PendingConnection | null>(null)
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null)
+  const [editingComment, setEditingComment] = useState<{ id: string; value: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
@@ -140,11 +144,19 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
 
   const elements = tree.all()
   const connections = tree.connections()
-  const items = elements.map((element) => ({
-    kind: element.kind,
-    label: element.label,
-    position: tree.layout.get(element.id)!,
-  }))
+  const comments = [...tree.comments.values()]
+  const items: CanvasItem[] = [
+    ...elements.map((element) => ({
+      kind: element.kind,
+      label: element.label,
+      position: tree.layout.get(element.id)!,
+    })),
+    // Kommentare zählen für Ursprung und Flächengröße mit, nie für die Logik.
+    ...comments.map((comment) => ({
+      box: commentSize(editingComment?.id === comment.id ? editingComment.value : comment.text),
+      position: comment.position,
+    })),
+  ]
   /** Smallest x/y across all elements; content above/left of (0,0) shifts the drawing. */
   const origin = canvasOrigin(items)
   const originRef = useRef(origin)
@@ -255,8 +267,75 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
     })
   }
 
+  function addComment(center?: Point) {
+    const { w, h } = commentSize('')
+    let position: Point
+    if (center) {
+      position = { x: center.x - w / 2, y: center.y - h / 2 }
+    } else {
+      const step = addCount.current++ % 8
+      const canvas = canvasRef.current!
+      position = { x: canvas.scrollLeft + origin.x + 40 + step * 28, y: canvas.scrollTop + origin.y + 40 + step * 28 }
+    }
+    // Kommentare sind keine Knoten: keine nodeIds im Log, die Kennung steht in den Details.
+    editorAction(tree, 'fault-tree-comment-created', [], () => {
+      const comment = tree.createComment(position)
+      setSelection({ type: 'comment', id: comment.id })
+      setEditing(null)
+      setEditingComment({ id: comment.id, value: '' })
+      refresh()
+      return { details: { commentId: comment.id, position } }
+    })
+  }
+
+  function commitComment() {
+    if (!editingComment) return
+    const comment = tree.comments.get(editingComment.id)
+    const value = editingComment.value
+    setEditingComment(null)
+    if (!comment || comment.text === value) return
+    editorAction(tree, 'fault-tree-comment-edited', [], () => {
+      comment.text = value
+      refresh()
+      return { details: { commentId: comment.id, text: value } }
+    })
+  }
+
+  function startMoveComment(event: React.PointerEvent, id: string) {
+    if (event.button !== 0) return
+    setSelection({ type: 'comment', id })
+    const startPosition = tree.comments.get(id)!.position
+    const start = toCanvas(event.clientX, event.clientY)
+    startTracking(
+      event.nativeEvent,
+      (move) => {
+        const comment = tree.comments.get(id)
+        if (!comment) return
+        const point = toCanvas(move.clientX, move.clientY)
+        comment.position = { x: startPosition.x + point.x - start.x, y: startPosition.y + point.y - start.y }
+        refresh()
+      },
+      () => {
+        const position = tree.comments.get(id)?.position
+        if (position && (position.x !== startPosition.x || position.y !== startPosition.y)) {
+          editorAction(tree, 'fault-tree-comment-moved', [], () => ({ details: { commentId: id, position } }))
+        }
+      },
+    )
+  }
+
   const deleteSelection = useCallback(() => {
     if (!selection) return
+    if (selection.type === 'comment') {
+      editorAction(tree, 'fault-tree-comment-deleted', [], () => {
+        if (!tree.comments.has(selection.id)) return false
+        tree.removeComment(selection.id)
+        setSelection(null)
+        refresh()
+        return { details: { commentId: selection.id } }
+      })
+      return
+    }
     const ids = selection.type === 'element'
       ? [selection.id, ...tree.connections().filter(({ childId, parentId }) =>
           childId === selection.id || parentId === selection.id,
@@ -375,10 +454,11 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
   }
 
   function handleDrop(event: React.DragEvent) {
-    const kind = event.dataTransfer.getData(DRAG_MIME) as ElementKind
+    const kind = event.dataTransfer.getData(DRAG_MIME)
     if (!kind) return
     event.preventDefault()
-    addElement(kind, toCanvas(event.clientX, event.clientY))
+    if (kind === COMMENT_DRAG_VALUE) addComment(toCanvas(event.clientX, event.clientY))
+    else addElement(kind as ElementKind, toCanvas(event.clientX, event.clientY))
   }
 
   const editedElement = editing ? tree.get(editing.id) : undefined
@@ -420,6 +500,7 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
                   onPointerDown={() => {
                     setSelection(null)
                     setEditing(null)
+                    commitComment()
                   }}
                 />
 
@@ -501,6 +582,43 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
                     )
                   })}
 
+                  {comments.map((comment) => {
+                    const { w, h } = commentSize(comment.text)
+                    const selected = selection?.type === 'comment' && selection.id === comment.id
+                    const hidden = editingComment?.id === comment.id
+                    return (
+                      <g
+                        key={comment.id}
+                        className={selected ? 'ft-comment selected' : 'ft-comment'}
+                        tabIndex={0}
+                        role="button"
+                        aria-label="Kommentar auswählen"
+                        aria-pressed={selected}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault()
+                            setSelection({ type: 'comment', id: comment.id })
+                            setEditingComment({ id: comment.id, value: comment.text })
+                          } else if (event.key === ' ') {
+                            event.preventDefault()
+                            setSelection({ type: 'comment', id: comment.id })
+                          }
+                        }}
+                        transform={`translate(${comment.position.x} ${comment.position.y})`}
+                        onPointerDown={(event) => startMoveComment(event, comment.id)}
+                        onDoubleClick={() => setEditingComment({ id: comment.id, value: comment.text })}
+                      >
+                        <rect className="ft-comment-box" width={w} height={h} rx={4} />
+                        {!hidden && (
+                          <foreignObject width={w} height={h}>
+                            {/* Als Textknoten gerendert (React maskiert), nie als HTML. */}
+                            <div className="ft-comment-text">{comment.text || 'Leerer Kommentar'}</div>
+                          </foreignObject>
+                        )}
+                      </g>
+                    )
+                  })}
+
                 </g>
                 <g transform={`translate(${CANVAS_PADDING - origin.x} ${CANVAS_PADDING - origin.y})`}>
                   {pending && <PendingLine tree={tree} pending={pending} />}
@@ -527,8 +645,34 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
                 />
               )}
 
+              {editingComment && tree.comments.get(editingComment.id) && (() => {
+                const position = tree.comments.get(editingComment.id)!.position
+                const { w, h } = commentSize(editingComment.value)
+                return (
+                  <textarea
+                    className="ft-comment-edit"
+                    aria-label="Kommentartext bearbeiten"
+                    autoFocus
+                    value={editingComment.value}
+                    style={{
+                      left: CANVAS_PADDING - origin.x + position.x,
+                      top: CANVAS_PADDING - origin.y + position.y,
+                      width: w,
+                      height: h,
+                    }}
+                    onChange={(event) => setEditingComment({ id: editingComment.id, value: event.target.value })}
+                    onBlur={commitComment}
+                    onKeyDown={(event) => {
+                      // Enter fügt eine Zeile ein; Strg+Enter übernimmt, Esc verwirft.
+                      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) commitComment()
+                      else if (event.key === 'Escape') setEditingComment(null)
+                    }}
+                  />
+                )
+              })()}
+
             </div>
-            {elements.length === 0 && (
+            {elements.length === 0 && comments.length === 0 && (
               <p className="ft-empty">Elemente aus der Seitenleiste in dieses Feld ziehen.</p>
             )}
           </div>
@@ -545,7 +689,7 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
         {results}
       </div>
       <div className="ft-side-column">
-        <Sidebar onAdd={(kind) => addElement(kind)} />
+        <Sidebar onAdd={(kind) => addElement(kind)} onAddComment={() => addComment()} />
         {selectedComponent && selectedElement && onComponentSave && (
           <ComponentParameters key={selectedElement.id} component={selectedComponent}
             occurrenceLabel={selectedElement.label} onSave={onComponentSave} />
