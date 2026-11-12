@@ -115,6 +115,13 @@ describe('project/editor integration', () => {
 
   it('edits the shared registry and project times, then roundtrips them through the file controls', async () => {
     const original = sharedSensorProject()
+    const diagram = original.diagrams.fehlerbaum!
+    original.diagrams.fehlerbaum = {
+      ...diagram,
+      nodes: Object.fromEntries(Object.entries(diagram.nodes).map(([id, node]) => [
+        id, node.componentRef === SENSOR ? { ...node, label: 'Sensor' } : node,
+      ])),
+    }
     const initial = render(<App />)
     importText(initial.container, JSON.stringify(original))
     const sensors = await screen.findAllByRole('button', { name: 'Element Sensor auswählen' })
@@ -152,21 +159,27 @@ describe('project/editor integration', () => {
       componentIds: [SENSOR], details: { name: 'Sensor neu', failureRate: 2.5e-5, repairRate: null },
     })
     const times = within(screen.getByRole('form', { name: 'Projektparameter' }))
-    fireEvent.change(times.getByLabelText(/Missionsdauer/), { target: { value: '0' } })
-    fireEvent.click(times.getByRole('button', { name: 'Übernehmen' }))
-    expect(times.getByLabelText(/Missionsdauer/)).toHaveAttribute('aria-invalid', 'true')
+    for (const value of ['0', '8.760', '8,760', '8 760']) {
+      fireEvent.change(times.getByLabelText(/Missionsdauer/), { target: { value } })
+      fireEvent.click(times.getByRole('button', { name: 'Übernehmen' }))
+      expect(times.getByLabelText(/Missionsdauer/)).toHaveAttribute('aria-invalid', 'true')
+    }
+    expect((await exportProject()).parameters).toEqual(original.parameters)
     fireEvent.click(times.getByRole('button', { name: 'Abbrechen' }))
     expect(times.getByLabelText(/Missionsdauer/)).toHaveValue('8760')
     fireEvent.change(times.getByLabelText(/Missionsdauer/), { target: { value: '120,5' } })
-    fireEvent.change(times.getByLabelText(/Prüfintervall/), { target: { value: '500' } })
+    fireEvent.change(times.getByLabelText(/Prüfintervall/), { target: { value: '8,761e0' } })
     fireEvent.click(times.getByRole('button', { name: 'Übernehmen' }))
     expect(log).toHaveBeenCalledWith('project-parameters-updated', {
-      details: { missionTimeHours: 120.5, testIntervalHours: 500 },
+      details: { missionTimeHours: 120.5, testIntervalHours: 8.761 },
     })
 
     const saved = await exportProject()
     expect(saved.components[SENSOR]).toEqual({ id: SENSOR, name: 'Sensor neu', failureRate: 2.5e-5 })
-    expect(saved.diagrams).toEqual(original.diagrams)
+    expect(saved.diagrams.fehlerbaum!.nodes['n-sensor-1']).toMatchObject({ label: 'Sensor neu', componentRef: SENSOR })
+    expect(saved.diagrams.fehlerbaum!.nodes['n-sensor-2']).toMatchObject({ label: 'Sensor neu', componentRef: SENSOR })
+    expect(saved.diagrams.fehlerbaum!.edges).toEqual(diagram.edges)
+    expect(saved.diagrams.fehlerbaum!.layout).toEqual(diagram.layout)
     const bdd = buildBddFromDiagram(saved.diagrams.fehlerbaum!, saved.components)
     expect(systemReliability(bdd, saved.components, saved.parameters.missionTimeHours))
       .not.toBe(systemReliability(bdd, original.components, original.parameters.missionTimeHours))
@@ -180,8 +193,27 @@ describe('project/editor integration', () => {
     expect(screen.getByLabelText(/Ausfallrate/)).toHaveValue('0.000025')
     expect(screen.getByLabelText(/Reparaturrate/)).toHaveValue('')
     expect(screen.getByLabelText(/Missionsdauer/)).toHaveValue('120.5')
-    expect(screen.getByLabelText(/Prüfintervall/)).toHaveValue('500')
+    expect(screen.getByLabelText(/Prüfintervall/)).toHaveValue('8.761e+0')
     expect(await exportProject()).toEqual(saved)
+  })
+
+  it('renames a newly created node via its component name and explains a custom label', async () => {
+    render(<App />)
+    await userEvent.dblClick(screen.getByText('Standardeingang'))
+    fireEvent.change(screen.getByLabelText('Komponentenname'), { target: { value: 'Sensor' } })
+    fireEvent.change(screen.getByLabelText(/Ausfallrate/), { target: { value: '1e-6' } })
+    const form = within(screen.getByRole('form', { name: 'Komponenteneigenschaften' }))
+    fireEvent.click(form.getByRole('button', { name: 'Übernehmen' }))
+    const node = screen.getByRole('button', { name: 'Element Sensor auswählen' })
+    await userEvent.dblClick(node)
+    const label = screen.getByRole('textbox', { name: 'Elementbeschriftung bearbeiten' })
+    await userEvent.clear(label)
+    await userEvent.type(label, 'Sensor links{Enter}')
+    expect(form.getByText(/eigene Beschriftung „Sensor links“/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Komponentenname'), { target: { value: 'Sensor neu' } })
+    fireEvent.click(form.getByRole('button', { name: 'Übernehmen' }))
+    expect(screen.getByRole('button', { name: 'Element Sensor links auswählen' })).toBeInTheDocument()
+    expect(form.getByLabelText('Komponentenname')).toHaveValue('Sensor neu')
   })
 
   it('saves incomplete trees and preserves the current tree on failed imports', async () => {

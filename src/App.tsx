@@ -37,7 +37,19 @@ function App() {
     if (!current || (current.name === component.name && current.failureRate === component.failureRate &&
       current.repairRate === component.repairRate)) return
     const patch = { name: component.name, failureRate: component.failureRate, repairRate: component.repairRate }
-    setProject((previous) => patchProjectComponent(previous, component.id, patch))
+    setProject((previous) => {
+      const updated = patchProjectComponent(previous, component.id, patch)
+      const diagram = previous.diagrams.fehlerbaum
+      if (!diagram || current.name === component.name) return updated
+      // The editor persists default labels too. Update those while preserving custom labels.
+      const nodes = Object.fromEntries(Object.entries(diagram.nodes).map(([id, node]) => [
+        id,
+        node.componentRef === component.id && node.label === current.name
+          ? { ...node, label: component.name }
+          : node,
+      ]))
+      return { ...updated, diagrams: { ...updated.diagrams, fehlerbaum: { ...diagram, nodes } } }
+    })
     appLogger.logAction('component-parameters-updated', {
       componentIds: [component.id],
       details: { ...patch, repairRate: component.repairRate ?? null },

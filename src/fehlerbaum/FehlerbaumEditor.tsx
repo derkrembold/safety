@@ -544,8 +544,9 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
       </div>
       <div className="ft-side-column">
         <Sidebar onAdd={(kind) => addElement(kind)} />
-        {selectedComponent && onComponentSave && (
-          <ComponentParameters key={selectedElement?.id} component={selectedComponent} onSave={onComponentSave} />
+        {selectedComponent && selectedElement && onComponentSave && (
+          <ComponentParameters key={selectedElement.id} component={selectedComponent}
+            occurrenceLabel={selectedElement.label} onSave={onComponentSave} />
         )}
         {project && onParametersSave && (
           <ProjectParameterPanel parameters={project.parameters} onSave={onParametersSave} />

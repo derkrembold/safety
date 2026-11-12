@@ -3,13 +3,22 @@ import type { FormEvent } from 'react'
 import { validateComponent, validateParameters } from '../core/validation'
 import type { ComponentDefinition, ProjectParameters } from '../project/types'
 
+// A single separator followed by three digits can also be a thousands separator.
+const ambiguousNumber = /^[+-]?[1-9][0-9]{0,2}[.,][0-9]{3}$/
+
+function formatNumber(value: number): string {
+  const text = String(value)
+  return ambiguousNumber.test(text) ? value.toExponential() : text
+}
+
 function parseNumber(text: string): number {
   const value = text.trim()
+  if (ambiguousNumber.test(value)) return NaN
   if (!/^[+-]?(?:[0-9]+(?:[.,][0-9]+)?|[.,][0-9]+)(?:e[+-]?[0-9]+)?$/i.test(value)) return NaN
   return Number(value.replace(',', '.'))
 }
 
-const numberError = 'Gib eine endliche Zahl größer als 0 ein, zum Beispiel 1e-6 oder 0,001.'
+const numberError = 'Gib eine endliche Zahl größer als 0 ohne Tausendertrennzeichen ein. Bei Mehrdeutigkeit: 8760 oder 8,760e0.'
 
 function Field({ label, value, onChange, error }: {
   label: string
@@ -33,13 +42,16 @@ function Field({ label, value, onChange, error }: {
   )
 }
 
-export function ComponentParameters({ component, onSave }: {
+export function ComponentParameters({ component, occurrenceLabel, onSave }: {
   component: ComponentDefinition
+  occurrenceLabel: string
   onSave: (component: ComponentDefinition) => void
 }) {
   const [name, setName] = useState(component.name)
-  const [failure, setFailure] = useState(component.failureRate === 0 ? '' : String(component.failureRate))
-  const [repair, setRepair] = useState(component.repairRate === undefined ? '' : String(component.repairRate))
+  const savedFailure = component.failureRate === 0 ? '' : formatNumber(component.failureRate)
+  const savedRepair = component.repairRate === undefined ? '' : formatNumber(component.repairRate)
+  const [failure, setFailure] = useState(savedFailure)
+  const [repair, setRepair] = useState(savedRepair)
   const [submitted, setSubmitted] = useState(false)
   const updated = {
     ...component,
@@ -50,13 +62,12 @@ export function ComponentParameters({ component, onSave }: {
   const issues = validateComponent(updated)
   const invalid = (code: string) => issues.some((issue) => issue.code === code)
   const dirty = name !== component.name ||
-    failure !== (component.failureRate === 0 ? '' : String(component.failureRate)) ||
-    repair !== (component.repairRate === undefined ? '' : String(component.repairRate))
+    failure !== savedFailure || repair !== savedRepair
 
   function reset() {
     setName(component.name)
-    setFailure(component.failureRate === 0 ? '' : String(component.failureRate))
-    setRepair(component.repairRate === undefined ? '' : String(component.repairRate))
+    setFailure(savedFailure)
+    setRepair(savedRepair)
     setSubmitted(false)
   }
 
@@ -66,8 +77,8 @@ export function ComponentParameters({ component, onSave }: {
     if (!updated.name || issues.some((issue) => issue.severity === 'error')) return
     onSave(updated)
     setName(updated.name)
-    setFailure(String(updated.failureRate))
-    setRepair(updated.repairRate === undefined ? '' : String(updated.repairRate))
+    setFailure(formatNumber(updated.failureRate))
+    setRepair(updated.repairRate === undefined ? '' : formatNumber(updated.repairRate))
     setSubmitted(false)
   }
 
@@ -77,6 +88,9 @@ export function ComponentParameters({ component, onSave }: {
       <p>Identität <code>{component.id}</code>. Änderungen gelten für alle Vorkommen dieser Komponente in allen Reitern.</p>
       <Field label="Komponentenname" value={name} onChange={setName}
         error={submitted && !updated.name ? 'Gib einen Komponentennamen ein.' : undefined} />
+      {occurrenceLabel !== component.name && (
+        <p>Dieses Vorkommen hat die eigene Beschriftung „{occurrenceLabel}“. Du kannst sie per Doppelklick im Baum ändern.</p>
+      )}
       <Field label="Ausfallrate λ (1/h)" value={failure} onChange={setFailure}
         error={submitted && invalid('INVALID_FAILURE_RATE') ? numberError : undefined} />
       <p>Dieselbe Ausfallrate wird als λ_DU für PFDavg verwendet.</p>
@@ -92,34 +106,36 @@ export function ProjectParameterPanel({ parameters, onSave }: {
   parameters: ProjectParameters
   onSave: (parameters: ProjectParameters) => void
 }) {
-  const [mission, setMission] = useState(String(parameters.missionTimeHours))
-  const [interval, setInterval] = useState(String(parameters.testIntervalHours))
+  const savedMission = formatNumber(parameters.missionTimeHours)
+  const savedInterval = formatNumber(parameters.testIntervalHours)
+  const [mission, setMission] = useState(savedMission)
+  const [interval, setInterval] = useState(savedInterval)
   const [submitted, setSubmitted] = useState(false)
   const updated = { missionTimeHours: parseNumber(mission), testIntervalHours: parseNumber(interval) }
   const issues = validateParameters(updated)
-  const dirty = mission !== String(parameters.missionTimeHours) || interval !== String(parameters.testIntervalHours)
+  const dirty = mission !== savedMission || interval !== savedInterval
 
   function submit(event: FormEvent) {
     event.preventDefault()
     setSubmitted(true)
     if (issues.length) return
     onSave(updated)
-    setMission(String(updated.missionTimeHours))
-    setInterval(String(updated.testIntervalHours))
+    setMission(formatNumber(updated.missionTimeHours))
+    setInterval(formatNumber(updated.testIntervalHours))
     setSubmitted(false)
   }
 
   return (
     <form className="ft-parameters" aria-label="Projektparameter" onSubmit={submit}>
       <h3>Projektparameter</h3>
-      <p>Diese Werte gelten für das gesamte Projekt.</p>
+      <p>Diese Werte gelten für das gesamte Projekt. Gib Stunden ohne Tausendertrennzeichen ein, zum Beispiel 8760.</p>
       <Field label="Missionsdauer t (h)" value={mission} onChange={setMission}
         error={submitted && issues.some((issue) => issue.code === 'INVALID_MISSION_TIME') ? numberError : undefined} />
       <Field label="Prüfintervall τ (h)" value={interval} onChange={setInterval}
         error={submitted && issues.some((issue) => issue.code === 'INVALID_TEST_INTERVAL') ? numberError : undefined} />
       <Actions dirty={dirty} onCancel={() => {
-        setMission(String(parameters.missionTimeHours))
-        setInterval(String(parameters.testIntervalHours))
+        setMission(savedMission)
+        setInterval(savedInterval)
         setSubmitted(false)
       }} />
     </form>
