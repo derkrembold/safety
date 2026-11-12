@@ -36,11 +36,16 @@ export function connectionPath(from: Point, to: Point): string {
 export const CANVAS_PADDING = 24
 
 export const COMMENT_WIDTH = 180
-const COMMENT_MIN_HEIGHT = 56
+export const COMMENT_MIN_HEIGHT = 56
 const COMMENT_LINE_HEIGHT = 18
 const COMMENT_CHARS_PER_LINE = 24
 
-/** Höhe eines Kommentarblocks aus Zeilenzahl und grober Umbruchschätzung (Breite ist fest). */
+/**
+ * Nur eine *Schätzung* der Kommentarhöhe: Startwert vor der ersten Messung und Fallback
+ * ohne Browser-Layout (jsdom). Im Browser misst der Editor die tatsächlich umbrochene
+ * Texthöhe und verwendet diese (Review PR #44) — eine pauschale Zeichenzahl pro Zeile
+ * passt zu keinem Font zuverlässig.
+ */
 export function commentSize(text: string): { w: number; h: number } {
   const lines = text.split('\n').reduce(
     (sum, line) => sum + Math.max(1, Math.ceil(Array.from(line).length / COMMENT_CHARS_PER_LINE)), 0)

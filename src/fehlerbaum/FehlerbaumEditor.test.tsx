@@ -230,6 +230,77 @@ describe('FehlerbaumEditor', () => {
     })
   })
 
+  describe('Kommentarhöhe aus der Messung (Review PR #44)', () => {
+    // jsdom hat kein Layout. Die Stubs simulieren einen Font, der nach 10 Zeichen umbricht —
+    // deutlich früher als die Schätzung in commentSize (24), wie der echte Monospace-Font,
+    // bei dem 48 × „A“ im Browser abgeschnitten wurden.
+    const BORDER = 4
+    const contentHeight = (text: string) =>
+      20 + 18 * text.split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / 10)), 0)
+
+    afterEach(() => vi.restoreAllMocks())
+
+    function stubLayout() {
+      vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+        if (this.classList.contains('ft-comment-text')) return contentHeight(this.textContent ?? '')
+        if (this instanceof HTMLTextAreaElement) return this.clientHeight + BORDER
+        return 0
+      })
+      vi.spyOn(Element.prototype, 'clientHeight', 'get').mockImplementation(function (this: Element) {
+        return this instanceof HTMLTextAreaElement ? Number.parseFloat(this.style.height) || 0 : 0
+      })
+      vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockImplementation(function (this: Element) {
+        return this instanceof HTMLTextAreaElement ? contentHeight(this.value) : 0
+      })
+    }
+    const boxHeight = (container: HTMLElement) => ({
+      rect: container.querySelector('.ft-comment-box')!.getAttribute('height'),
+      foreignObject: container.querySelector('foreignObject')?.getAttribute('height'),
+    })
+
+    it('nutzt für Rahmen und foreignObject die gemessene statt der geschätzten Höhe', () => {
+      stubLayout()
+      const tree = new FaultTree()
+      tree.createComment({ x: 10, y: 10 }, 'A'.repeat(48))
+      const { container } = render(<FehlerbaumEditor tree={tree} />)
+      // Schätzung: 2 Zeilen → 56 px; gemessen: 5 Zeilen → 110 px.
+      expect(boxHeight(container)).toEqual({ rect: '110', foreignObject: '110' })
+    })
+
+    it('berücksichtigt explizite Zeilenumbrüche und breite Zeichen über die Messung', () => {
+      stubLayout()
+      const tree = new FaultTree()
+      tree.createComment({ x: 10, y: 10 }, 'eins\n\nWWWWWWWWWWWWWWWWWWWWWW\n漢字漢字漢字漢字漢字漢字')
+      const { container } = render(<FehlerbaumEditor tree={tree} />)
+      const expected = String(contentHeight('eins\n\nWWWWWWWWWWWWWWWWWWWWWW\n漢字漢字漢字漢字漢字漢字'))
+      expect(boxHeight(container)).toEqual({ rect: expected, foreignObject: expected })
+    })
+
+    it('lässt das Bearbeitungsfeld mit dem Entwurf wachsen und wieder schrumpfen', async () => {
+      stubLayout()
+      const tree = new FaultTree()
+      tree.createComment({ x: 10, y: 10 }, 'kurz')
+      const { container } = render(<FehlerbaumEditor tree={tree} />)
+      await userEvent.dblClick(screen.getByText('kurz').closest('g')!)
+      const box = screen.getByRole<HTMLTextAreaElement>('textbox')
+      fireEvent.change(box, { target: { value: 'B'.repeat(60) } })
+      const grown = contentHeight('B'.repeat(60)) + BORDER
+      expect(box.style.height).toBe(`${grown}px`)
+      expect(boxHeight(container).rect).toBe(String(grown))
+      fireEvent.change(box, { target: { value: 'k' } })
+      expect(box.style.height).toBe('56px')
+      expect(boxHeight(container).rect).toBe('56')
+    })
+
+    it('unterschreitet nie die Mindesthöhe', () => {
+      stubLayout()
+      const tree = new FaultTree()
+      tree.createComment({ x: 10, y: 10 }, 'x')
+      const { container } = render(<FehlerbaumEditor tree={tree} />)
+      expect(boxHeight(container).rect).toBe('56')
+    })
+  })
+
   describe('Abbrechen beim Verbinden', () => {
     function setup() {
       const tree = new FaultTree()

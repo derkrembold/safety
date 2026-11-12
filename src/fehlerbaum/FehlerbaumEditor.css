@@ -136,27 +136,33 @@
   stroke: var(--text);
   stroke-width: 1.5;
 }
-.ft-comment-text {
+/*
+ * Anzeige und Bearbeitungsfeld haben dieselbe Box (Breite, Rand, Innenabstand, Font), damit
+ * der Text an denselben Stellen umbricht. Die Höhe ergibt sich aus dem Inhalt und wird vom
+ * Editor gemessen; nichts wird abgeschnitten (Review PR #44).
+ */
+.ft-comment-text, .ft-comment-edit {
   box-sizing: border-box;
-  height: 100%;
+  margin: 0;
   padding: 8px 10px;
-  overflow: hidden;
-  color: var(--text-h);
+  border: 2px solid transparent;
   font: 13px/18px var(--sans);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.ft-comment-text {
+  width: 100%;
+  color: var(--text-h);
   pointer-events: none;
 }
 .ft-comment-edit {
   position: absolute;
-  box-sizing: border-box;
-  padding: 8px 10px;
+  overflow: hidden;
   resize: none;
-  border: 2px solid var(--accent);
+  border-color: var(--accent);
   border-radius: 4px;
   background: var(--bg);
   color: var(--text-h);
-  font: 13px/18px var(--sans);
 }
 .ft-comment:focus-visible {
   outline: 2px solid var(--accent);

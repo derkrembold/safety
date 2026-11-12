@@ -6,6 +6,7 @@ import {
   canvasOrigin,
   canvasPoint,
   canvasSize,
+  COMMENT_MIN_HEIGHT,
   commentSize,
   connectionPath,
   inputAnchor,
@@ -145,6 +146,8 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
   const drawingRef = useRef<SVGGElement>(null)
   const [viewport, setViewport] = useState({ w: 0, h: 0 })
   const [measuredBounds, setMeasuredBounds] = useState<{ right: number; bottom: number }>()
+  /** Im Browser gemessene Kommentarhöhen (umbrochener Text bzw. Bearbeitungsfeld) je Kennung. */
+  const [commentHeights, setCommentHeights] = useState<ReadonlyMap<string, number>>(() => new Map())
   const updateOnScroll = useRef<(() => void) | null>(null)
   const addCount = useRef(0)
   const cancelTracking = useRef<(() => void) | null>(null)
@@ -152,6 +155,12 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
   const elements = tree.all()
   const connections = tree.connections()
   const comments = [...tree.comments.values()]
+  /** Eine Größe für Rahmen, foreignObject, Bearbeitungsfeld und Flächenausdehnung. */
+  function commentBox(id: string, text: string): { w: number; h: number } {
+    const estimate = commentSize(text)
+    const measured = commentHeights.get(id)
+    return measured === undefined ? estimate : { w: estimate.w, h: Math.max(COMMENT_MIN_HEIGHT, measured) }
+  }
   const items: CanvasItem[] = [
     ...elements.map((element) => ({
       kind: element.kind,
@@ -160,7 +169,7 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
     })),
     // Kommentare zählen für Ursprung und Flächengröße mit, nie für die Logik.
     ...comments.map((comment) => ({
-      box: commentSize(editingComment?.id === comment.id ? editingComment.value : comment.text),
+      box: commentBox(comment.id, editingComment?.id === comment.id ? editingComment.value : comment.text),
       position: comment.position,
     })),
   ]
@@ -216,6 +225,37 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure) }
   }, [])
 
+  // Kommentarhöhe aus dem tatsächlich umbrochenen Text messen (Font, Zeichenbreiten,
+  // Zeilenumbrüche), statt sie aus einer Zeichenzahl zu schätzen (Review PR #44).
+  // Ohne Layout (jsdom) liefert die Messung 0 und die Schätzung bleibt stehen.
+  useLayoutEffect(() => {
+    const surface = surfaceRef.current
+    if (!surface) return
+    const measured = new Map<string, number>()
+    for (const text of surface.querySelectorAll<HTMLElement>('.ft-comment-text[data-comment-id]')) {
+      if (text.offsetHeight > 0) measured.set(text.dataset.commentId!, text.offsetHeight)
+    }
+    const editor = surface.querySelector<HTMLTextAreaElement>('.ft-comment-edit[data-comment-id]')
+    if (editor) {
+      // Auf 0 setzen, damit scrollHeight auch beim Kürzen schrumpft, danach sofort zurück.
+      const rendered = editor.style.height
+      editor.style.height = '0px'
+      const border = editor.offsetHeight - editor.clientHeight
+      const content = editor.scrollHeight
+      editor.style.height = rendered
+      if (content > 0) measured.set(editor.dataset.commentId!, content + border)
+    }
+    setCommentHeights((previous) => {
+      const next = new Map(measured)
+      for (const [id, height] of previous) {
+        // Der gerade bearbeitete Kommentar wird nicht als Text gerendert; Wert behalten.
+        if (!next.has(id) && tree.comments.has(id)) next.set(id, height)
+      }
+      const same = next.size === previous.size && [...next].every(([id, height]) => previous.get(id) === height)
+      return same ? previous : next
+    })
+  }, [tree, revision, editingComment])
+
   // SVG's actual text metrics include long labels and the chosen/fallback font.
   useLayoutEffect(() => {
     const drawing = drawingRef.current
@@ -223,7 +263,7 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
     const box = drawing.getBBox()
     const next = { right: box.x + box.width, bottom: box.y + box.height }
     setMeasuredBounds((previous) => previous?.right === next.right && previous.bottom === next.bottom ? previous : next)
-  }, [tree, revision, viewport, editingComment?.value])
+  }, [tree, revision, viewport, editingComment?.value, commentHeights])
 
   // Content growing above/left shifts the drawing by the same amount the surface grows,
   // so without this the viewport would visibly jump; compensate by scrolling along with it.
@@ -593,7 +633,7 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
                     const hidden = editingComment?.id === comment.id
                     // Während der Bearbeitung wächst der Rahmen mit dem Entwurf, damit die
                     // gemessenen SVG-Grenzen (und damit die Fläche) dem Textfeld folgen.
-                    const { w, h } = commentSize(hidden ? editingComment.value : comment.text)
+                    const { w, h } = commentBox(comment.id, hidden ? editingComment.value : comment.text)
                     const selected = selection?.type === 'comment' && selection.id === comment.id
                     const preview = Array.from(comment.text.replace(/\s+/g, ' ').trim()).slice(0, 40).join('')
                     return (
@@ -622,7 +662,9 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
                         {!hidden && (
                           <foreignObject width={w} height={h}>
                             {/* Als Textknoten gerendert (React maskiert), nie als HTML. */}
-                            <div className="ft-comment-text">{comment.text || 'Leerer Kommentar'}</div>
+                            <div className="ft-comment-text" data-comment-id={comment.id}>
+                              {comment.text || 'Leerer Kommentar'}
+                            </div>
                           </foreignObject>
                         )}
                       </g>
@@ -657,10 +699,11 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
 
               {editingComment && tree.comments.get(editingComment.id) && (() => {
                 const position = tree.comments.get(editingComment.id)!.position
-                const { w, h } = commentSize(editingComment.value)
+                const { w, h } = commentBox(editingComment.id, editingComment.value)
                 return (
                   <textarea
                     className="ft-comment-edit"
+                    data-comment-id={editingComment.id}
                     aria-label="Kommentartext bearbeiten"
                     autoFocus
                     value={editingComment.value}
