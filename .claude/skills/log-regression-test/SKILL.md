@@ -40,6 +40,12 @@ Für jeden relevanten Eintrag in `entries`, in Reihenfolge: die passende öffent
 | `fault-tree-connected` | `tree.connect(details.childId, details.parentId)` |
 | `fault-tree-disconnected` | `tree.disconnect(details.childId, details.parentId)` |
 | `fault-tree-element-deleted` | `tree.remove(nodeId)` |
+| `fault-tree-comment-created` | `tree.createComment(details.position)` (neue Kennung; `details.commentId` darauf abbilden) |
+| `fault-tree-comment-edited` | `comment.text = details.text` |
+| `fault-tree-comment-moved` | `comment.position = details.position` |
+| `fault-tree-comment-deleted` | `tree.removeComment(commentId)` |
+
+Kommentare haben keine `nodeIds`; ihre Kennung steht in `details.commentId`.
 
 Bevorzuge diese Core-Ebene (`src/fehlerbaum/model.ts`, `FaultTree`): sie ist schneller, deterministisch, und der Log liefert dafür bereits alles Nötige.
 

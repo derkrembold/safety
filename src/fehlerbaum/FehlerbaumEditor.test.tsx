@@ -1,4 +1,4 @@
-import { createEvent, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, createEvent, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FehlerbaumEditor } from './FehlerbaumEditor'
@@ -154,6 +154,22 @@ describe('FehlerbaumEditor', () => {
       render(<FehlerbaumEditor tree={tree} />)
       await userEvent.dblClick(screen.getByText('alt').closest('g')!)
       await userEvent.type(screen.getByRole('textbox'), ' neu{Escape}')
+      expect(tree.comments.get(comment.id)?.text).toBe('alt')
+    })
+
+    it('übernimmt den per Esc verworfenen Text nicht durch ein nachfolgendes blur', async () => {
+      const tree = new FaultTree()
+      const comment = tree.createComment({ x: 10, y: 10 }, 'alt')
+      render(<FehlerbaumEditor tree={tree} />)
+      await userEvent.dblClick(screen.getByText('alt').closest('g')!)
+      const box = screen.getByRole('textbox')
+      fireEvent.change(box, { target: { value: 'verworfen' } })
+      // Beide Ereignisse vor dem nächsten Render: so feuert ein Browser blur beim Entfernen
+      // des Textfelds, während der Handler noch die alte Closure mit dem Entwurf hält.
+      act(() => {
+        fireEvent.keyDown(box, { key: 'Escape' })
+        fireEvent.blur(box)
+      })
       expect(tree.comments.get(comment.id)?.text).toBe('alt')
     })
 

@@ -131,7 +131,14 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
     : undefined
   const [pending, setPending] = useState<PendingConnection | null>(null)
   const [editing, setEditing] = useState<{ id: string; value: string } | null>(null)
-  const [editingComment, setEditingComment] = useState<{ id: string; value: string } | null>(null)
+  const [editingComment, setEditingCommentState] = useState<{ id: string; value: string } | null>(null)
+  // Spiegel des Entwurfs: ein blur, das beim Entfernen des Textfelds noch mit der alten
+  // Closure feuert, darf weder einen per Esc verworfenen Text übernehmen noch doppelt loggen.
+  const editingCommentRef = useRef<{ id: string; value: string } | null>(null)
+  const setEditingComment = useCallback((next: { id: string; value: string } | null) => {
+    editingCommentRef.current = next
+    setEditingCommentState(next)
+  }, [])
   const [notice, setNotice] = useState<string | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
@@ -216,7 +223,7 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
     const box = drawing.getBBox()
     const next = { right: box.x + box.width, bottom: box.y + box.height }
     setMeasuredBounds((previous) => previous?.right === next.right && previous.bottom === next.bottom ? previous : next)
-  }, [tree, revision, viewport])
+  }, [tree, revision, viewport, editingComment?.value])
 
   // Content growing above/left shifts the drawing by the same amount the surface grows,
   // so without this the viewport would visibly jump; compensate by scrolling along with it.
@@ -289,9 +296,10 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
   }
 
   function commitComment() {
-    if (!editingComment) return
-    const comment = tree.comments.get(editingComment.id)
-    const value = editingComment.value
+    const draft = editingCommentRef.current
+    if (!draft) return
+    const comment = tree.comments.get(draft.id)
+    const value = draft.value
     setEditingComment(null)
     if (!comment || comment.text === value) return
     editorAction(tree, 'fault-tree-comment-edited', [], () => {
@@ -500,7 +508,6 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
                   onPointerDown={() => {
                     setSelection(null)
                     setEditing(null)
-                    commitComment()
                   }}
                 />
 
@@ -583,16 +590,19 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
                   })}
 
                   {comments.map((comment) => {
-                    const { w, h } = commentSize(comment.text)
-                    const selected = selection?.type === 'comment' && selection.id === comment.id
                     const hidden = editingComment?.id === comment.id
+                    // Während der Bearbeitung wächst der Rahmen mit dem Entwurf, damit die
+                    // gemessenen SVG-Grenzen (und damit die Fläche) dem Textfeld folgen.
+                    const { w, h } = commentSize(hidden ? editingComment.value : comment.text)
+                    const selected = selection?.type === 'comment' && selection.id === comment.id
+                    const preview = Array.from(comment.text.replace(/\s+/g, ' ').trim()).slice(0, 40).join('')
                     return (
                       <g
                         key={comment.id}
                         className={selected ? 'ft-comment selected' : 'ft-comment'}
                         tabIndex={0}
                         role="button"
-                        aria-label="Kommentar auswählen"
+                        aria-label={preview ? `Kommentar „${preview}“ auswählen` : 'Leeren Kommentar auswählen'}
                         aria-pressed={selected}
                         onKeyDown={(event) => {
                           if (event.key === 'Enter') {
