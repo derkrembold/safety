@@ -45,8 +45,9 @@ function nodeId(label: string) {
 
 async function rename(label: string, value: string) {
   await userEvent.dblClick(screen.getByText(label).closest('g')!)
-  await userEvent.clear(screen.getByRole('textbox'))
-  await userEvent.type(screen.getByRole('textbox'), `${value}{Enter}`)
+  const input = screen.getByRole('textbox', { name: 'Elementbeschriftung bearbeiten' })
+  await userEvent.clear(input)
+  await userEvent.type(input, `${value}{Enter}`)
 }
 
 async function downloadLog() {

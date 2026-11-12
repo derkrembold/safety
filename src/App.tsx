@@ -3,7 +3,9 @@ import './App.css'
 import './shell/shell.css'
 import { FaultTree } from './fehlerbaum/model'
 import { exportProjectToFile, importProjectFromFile } from './project/io'
-import { createEmptyProject, type Project, type TabId } from './project/types'
+import { createEmptyProject, type ComponentDefinition, type Project, type ProjectParameters, type TabId } from './project/types'
+import { patchProjectComponent, setParameters } from './core/project'
+import { getComponent } from './core/registry'
 import { BddTab } from './tabs/Bdd'
 import { FehlerbaumanalyseTab } from './tabs/Fehlerbaumanalyse'
 import { ZuverlaessigkeitsdiagrammTab } from './tabs/Zuverlaessigkeitsdiagramm'
@@ -29,6 +31,37 @@ function App() {
   const handleTreeChange = useCallback((tree: FaultTree) => {
     setProject((current) => tree.toProject(current))
   }, [])
+
+  function saveComponent(component: ComponentDefinition) {
+    const current = getComponent(project.components, component.id)
+    if (!current || (current.name === component.name && current.failureRate === component.failureRate &&
+      current.repairRate === component.repairRate)) return
+    const patch = { name: component.name, failureRate: component.failureRate, repairRate: component.repairRate }
+    setProject((previous) => {
+      const updated = patchProjectComponent(previous, component.id, patch)
+      const diagram = previous.diagrams.fehlerbaum
+      if (!diagram || current.name === component.name) return updated
+      // The editor persists default labels too. Update those while preserving custom labels.
+      const nodes = Object.fromEntries(Object.entries(diagram.nodes).map(([id, node]) => [
+        id,
+        node.componentRef === component.id && node.label === current.name
+          ? { ...node, label: component.name }
+          : node,
+      ]))
+      return { ...updated, diagrams: { ...updated.diagrams, fehlerbaum: { ...diagram, nodes } } }
+    })
+    appLogger.logAction('component-parameters-updated', {
+      componentIds: [component.id],
+      details: { ...patch, repairRate: component.repairRate ?? null },
+    })
+  }
+
+  function saveParameters(parameters: ProjectParameters) {
+    if (project.parameters.missionTimeHours === parameters.missionTimeHours &&
+      project.parameters.testIntervalHours === parameters.testIntervalHours) return
+    setProject((previous) => setParameters(previous, parameters))
+    appLogger.logAction('project-parameters-updated', { details: { ...parameters } })
+  }
   const fileInputRef = useRef<HTMLInputElement>(null)
   const debugEnabled = useSyncExternalStore(appLogger.subscribe, () => appLogger.debugEnabled)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -158,7 +191,8 @@ function App() {
 
       <main id="tab-content">
         {activeTab === 'fehlerbaum' && (
-          <FehlerbaumanalyseTab key={importRevision} tree={faultTree} onChange={handleTreeChange} />
+          <FehlerbaumanalyseTab key={importRevision} tree={faultTree} onChange={handleTreeChange}
+            project={project} onComponentSave={saveComponent} onParametersSave={saveParameters} />
         )}
         {activeTab === 'zuverlaessigkeitsdiagramm' && (
           <ZuverlaessigkeitsdiagrammTab />
