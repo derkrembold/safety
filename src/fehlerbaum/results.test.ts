@@ -5,6 +5,23 @@ import { buildBdd } from '../core/bdd'
 import { minimalCutSets } from '../core/bdd/cutSets'
 import { calculateResults, silBand, resultsKey, formatValue } from './results'
 
+describe('Kommentarblöcke (#24) und Ergebnisse', () => {
+  const note = { id: 'a-1', text: 'Annahme', position: { x: 0, y: 400 } }
+  it('liefert mit und ohne Kommentar identische Ergebnisse und denselben Ergebnis-Schlüssel', () => {
+    const plain = sharedSensorProject()
+    const commented = { ...plain, diagrams: { ...plain.diagrams,
+      fehlerbaum: { ...plain.diagrams.fehlerbaum!, annotations: { [note.id]: note } } } }
+    expect(calculateResults(commented)).toEqual(calculateResults(plain))
+    expect(resultsKey(commented)).toBe(resultsKey(plain))
+  })
+  it('behandelt eine reine Kommentarseite als leeren Fehlerbaum', () => {
+    const project = createEmptyProject('Nur Kommentar')
+    project.diagrams.fehlerbaum = { nodes: {}, edges: [], layout: {}, annotations: { [note.id]: note },
+      provenance: { origin: 'authored', stale: false } }
+    expect(() => calculateResults(project)).toThrow('Der Fehlerbaum ist leer')
+  })
+})
+
 describe('fault tree results', () => {
   it('keeps shared identities in probabilities, cut sets and the component table', () => {
     const p = sharedSensorProject(), r = calculateResults(p), t = p.parameters.missionTimeHours

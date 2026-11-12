@@ -72,7 +72,21 @@ describe('fault tree project projection', () => {
     expect(project.diagrams.fehlerbaum?.edges).toEqual([])
   })
 
-  it.each(['unknown-kind', 'missing-component', 'cycle', 'multiple-parents'])('rejects %s before replacing a project', (problem) => {
+  it('hält Kommentare getrennt von den Elementen und speichert sie mit dem Projekt', () => {
+    const tree = new FaultTree()
+    tree.create('standardeingang', { x: 10, y: 20 })
+    const comment = tree.createComment({ x: 300, y: 40 }, 'Zeile 1\nZeile 2')
+    expect(tree.all()).toHaveLength(1)
+    const project = tree.toProject(createEmptyProject('Mit Kommentar'))
+    expect(Object.keys(project.diagrams.fehlerbaum!.nodes)).toHaveLength(1)
+    expect(project.diagrams.fehlerbaum?.layout[comment.id]).toBeUndefined()
+    const restored = FaultTree.fromProject(fromJSON(toJSON(project)))
+    expect(restored.comments.get(comment.id)).toEqual(comment)
+    restored.removeComment(comment.id)
+    expect(restored.toProject(project).diagrams.fehlerbaum?.annotations).toBeUndefined()
+  })
+
+  it.each(['unknown-kind','missing-component', 'cycle', 'multiple-parents'])('rejects %s before replacing a project', (problem) => {
     const project = sharedProject()
     const diagram = project.diagrams.fehlerbaum!
     if (problem === 'unknown-kind') {

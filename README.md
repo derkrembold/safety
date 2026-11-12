@@ -122,6 +122,11 @@ hat; einzelne Mausbewegungen, Tastatureingaben, Auswahl und Größenanpassungen 
 als Aktionen gespeichert. Abgebrochene oder abgelehnte Verbindungen und unveränderte oder
 leere Namen erzeugen keinen Erfolgseintrag.
 
+Kommentarblöcke (Issue #24) protokollieren `fault-tree-comment-created`,
+`fault-tree-comment-edited`, `fault-tree-comment-moved` und `fault-tree-comment-deleted`.
+Da ein Kommentar weder Diagramm-Vorkommen noch Komponente ist, tragen diese Einträge keine
+`nodeIds`/`componentIds`; die Kennung steht als `details.commentId`.
+
 Die optionalen `nodeIds` im gemeinsamen Logformat bezeichnen Diagramm-Vorkommen,
 `componentIds` ausschließlich referenzierte Identitäten aus der Komponenten-Registry.
 Gatter haben keine Komponentenidentität. Mehrere Vorkommen derselben Komponente liefern

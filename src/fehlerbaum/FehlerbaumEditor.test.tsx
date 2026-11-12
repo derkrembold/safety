@@ -1,4 +1,4 @@
-import { createEvent, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, createEvent, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FehlerbaumEditor } from './FehlerbaumEditor'
@@ -104,6 +104,201 @@ describe('FehlerbaumEditor', () => {
     await userEvent.type(input, 'Sensor A{Enter}')
     expect(screen.getByText('Sensor A')).toBeInTheDocument()
     expect(tree.all()[0].label).toBe('Sensor A')
+  })
+
+  describe('Kommentarblock', () => {
+    const sidebar = () => screen.getByRole('complementary', { name: 'Verknüpfungselemente' })
+
+    it('steht in der Palette neben den Verknüpfungselementen', () => {
+      render(<FehlerbaumEditor tree={new FaultTree()} />)
+      expect(within(sidebar()).getByText('Kommentar')).toBeInTheDocument()
+    })
+
+    it('wird per Doppelklick eingefügt, mehrzeilig bearbeitet und als Text angezeigt', async () => {
+      const tree = new FaultTree()
+      render(<FehlerbaumEditor tree={tree} />)
+      await addViaSidebar('Kommentar')
+      expect(tree.comments.size).toBe(1)
+      expect(tree.all()).toHaveLength(0)
+      await userEvent.type(screen.getByRole('textbox', { name: 'Kommentartext bearbeiten' }), 'Zeile 1{Enter}Zeile 2')
+      await userEvent.keyboard('{Control>}{Enter}{/Control}')
+      expect([...tree.comments.values()][0].text).toBe('Zeile 1\nZeile 2')
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+      expect(screen.getByText(/Zeile 1/).textContent).toBe('Zeile 1\nZeile 2')
+    })
+
+    it('stellt HTML im Kommentartext nie als HTML dar', async () => {
+      const tree = new FaultTree()
+      tree.createComment({ x: 10, y: 10 }, '<img src=x alt="boese"><b>fett</b>')
+      const { container } = render(<FehlerbaumEditor tree={tree} />)
+      expect(screen.getByText('<img src=x alt="boese"><b>fett</b>')).toBeInTheDocument()
+      expect(container.querySelector('foreignObject img, foreignObject b')).toBeNull()
+    })
+
+    it('löscht beim Tippen nur Text, nicht den Block oder andere Elemente', async () => {
+      const tree = new FaultTree()
+      tree.create('standardeingang', { x: 300, y: 300 })
+      const comment = tree.createComment({ x: 10, y: 10 }, 'abc')
+      render(<FehlerbaumEditor tree={tree} />)
+      await userEvent.dblClick(screen.getByText('abc').closest('g')!)
+      const box = screen.getByRole('textbox', { name: 'Kommentartext bearbeiten' })
+      await userEvent.type(box, '{Backspace}{Backspace}{Delete}')
+      expect(tree.comments.has(comment.id)).toBe(true)
+      expect(tree.all()).toHaveLength(1)
+      expect(box).toHaveValue('abc'.slice(0, 1))
+    })
+
+    it('verwirft die Bearbeitung mit Esc', async () => {
+      const tree = new FaultTree()
+      const comment = tree.createComment({ x: 10, y: 10 }, 'alt')
+      render(<FehlerbaumEditor tree={tree} />)
+      await userEvent.dblClick(screen.getByText('alt').closest('g')!)
+      await userEvent.type(screen.getByRole('textbox'), ' neu{Escape}')
+      expect(tree.comments.get(comment.id)?.text).toBe('alt')
+    })
+
+    it('übernimmt den per Esc verworfenen Text nicht durch ein nachfolgendes blur', async () => {
+      const tree = new FaultTree()
+      const comment = tree.createComment({ x: 10, y: 10 }, 'alt')
+      render(<FehlerbaumEditor tree={tree} />)
+      await userEvent.dblClick(screen.getByText('alt').closest('g')!)
+      const box = screen.getByRole('textbox')
+      fireEvent.change(box, { target: { value: 'verworfen' } })
+      // Beide Ereignisse vor dem nächsten Render: so feuert ein Browser blur beim Entfernen
+      // des Textfelds, während der Handler noch die alte Closure mit dem Entwurf hält.
+      act(() => {
+        fireEvent.keyDown(box, { key: 'Escape' })
+        fireEvent.blur(box)
+      })
+      expect(tree.comments.get(comment.id)?.text).toBe('alt')
+    })
+
+    it('wird mit Entf gelöscht, wenn er ausgewählt ist', async () => {
+      const tree = new FaultTree()
+      tree.create('standardeingang', { x: 300, y: 300 })
+      const comment = tree.createComment({ x: 10, y: 10 }, 'weg damit')
+      render(<FehlerbaumEditor tree={tree} />)
+      fireEvent.pointerDown(screen.getByText('weg damit').closest('g')!, { button: 0 })
+      fireEvent.pointerUp(window)
+      await userEvent.keyboard('{Delete}')
+      expect(tree.comments.has(comment.id)).toBe(false)
+      expect(tree.all()).toHaveLength(1)
+    })
+
+    it('lässt sich per Mausziehen verschieben', () => {
+      const tree = new FaultTree()
+      const comment = tree.createComment({ x: 10, y: 10 }, 'bewege mich')
+      render(<FehlerbaumEditor tree={tree} />)
+      fireEvent.pointerDown(screen.getByText('bewege mich').closest('g')!, { button: 0, clientX: 0, clientY: 0 })
+      fireEvent.pointerMove(window, { clientX: 30, clientY: 50 })
+      fireEvent.pointerUp(window, { clientX: 30, clientY: 50 })
+      expect(tree.comments.get(comment.id)?.position).toEqual({ x: 40, y: 60 })
+    })
+
+    it('wird per Ziehen aus der Palette auf die Fläche gelegt', () => {
+      const tree = new FaultTree()
+      render(<FehlerbaumEditor tree={tree} />)
+      const canvas = screen.getByRole('region', { name: 'Fehlerbaum-Zeichenfläche' })
+      const data = new Map([[DRAG_MIME, 'kommentar']])
+      const drop = createEvent.drop(canvas)
+      Object.defineProperty(drop, 'dataTransfer', { value: { getData: (type: string) => data.get(type) ?? '' } })
+      fireEvent(canvas, drop)
+      expect(tree.comments.size).toBe(1)
+      expect(tree.all()).toHaveLength(0)
+    })
+
+    it('bietet keine Anschlussports und lässt keine Verbindung zu', () => {
+      const tree = new FaultTree()
+      const oder = tree.create('oder', { x: 100, y: 200 })
+      const comment = tree.createComment({ x: 10, y: 10 }, 'Notiz')
+      const { container } = render(<FehlerbaumEditor tree={tree} />)
+      expect(container.querySelector(`[data-element-id="${comment.id}"]`)).toBeNull()
+      expect(container.querySelectorAll('.ft-comment [data-stub]')).toHaveLength(0)
+      expect(tree.connect(comment.id, oder.id)).toEqual({ ok: false, error: 'unknown-element' })
+      expect(tree.connect(oder.id, comment.id)).toEqual({ ok: false, error: 'unknown-element' })
+    })
+
+    it('bleibt beim Datei-Roundtrip samt Text und Position erhalten', async () => {
+      const tree = new FaultTree()
+      render(<FehlerbaumEditor tree={tree} />)
+      await addViaSidebar('Kommentar')
+      await userEvent.type(screen.getByRole('textbox'), 'a{Enter}b')
+      await userEvent.keyboard('{Control>}{Enter}{/Control}')
+      const [comment] = [...tree.comments.values()]
+      const restored = FaultTree.fromProject(fromJSON(toJSON(tree.toProject(createEmptyProject('P')))))
+      expect(restored.comments.get(comment.id)).toEqual({ id: comment.id, text: 'a\nb', position: comment.position })
+    })
+  })
+
+  describe('Kommentarhöhe aus der Messung (Review PR #44)', () => {
+    // jsdom hat kein Layout. Die Stubs simulieren einen Font, der nach 10 Zeichen umbricht —
+    // deutlich früher als die Schätzung in commentSize (24), wie der echte Monospace-Font,
+    // bei dem 48 × „A“ im Browser abgeschnitten wurden.
+    const BORDER = 4
+    const contentHeight = (text: string) =>
+      20 + 18 * text.split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / 10)), 0)
+
+    afterEach(() => vi.restoreAllMocks())
+
+    function stubLayout() {
+      vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+        if (this.classList.contains('ft-comment-text')) return contentHeight(this.textContent ?? '')
+        if (this instanceof HTMLTextAreaElement) return this.clientHeight + BORDER
+        return 0
+      })
+      vi.spyOn(Element.prototype, 'clientHeight', 'get').mockImplementation(function (this: Element) {
+        return this instanceof HTMLTextAreaElement ? Number.parseFloat(this.style.height) || 0 : 0
+      })
+      vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockImplementation(function (this: Element) {
+        return this instanceof HTMLTextAreaElement ? contentHeight(this.value) : 0
+      })
+    }
+    const boxHeight = (container: HTMLElement) => ({
+      rect: container.querySelector('.ft-comment-box')!.getAttribute('height'),
+      foreignObject: container.querySelector('foreignObject')?.getAttribute('height'),
+    })
+
+    it('nutzt für Rahmen und foreignObject die gemessene statt der geschätzten Höhe', () => {
+      stubLayout()
+      const tree = new FaultTree()
+      tree.createComment({ x: 10, y: 10 }, 'A'.repeat(48))
+      const { container } = render(<FehlerbaumEditor tree={tree} />)
+      // Schätzung: 2 Zeilen → 56 px; gemessen: 5 Zeilen → 110 px.
+      expect(boxHeight(container)).toEqual({ rect: '110', foreignObject: '110' })
+    })
+
+    it('berücksichtigt explizite Zeilenumbrüche und breite Zeichen über die Messung', () => {
+      stubLayout()
+      const tree = new FaultTree()
+      tree.createComment({ x: 10, y: 10 }, 'eins\n\nWWWWWWWWWWWWWWWWWWWWWW\n漢字漢字漢字漢字漢字漢字')
+      const { container } = render(<FehlerbaumEditor tree={tree} />)
+      const expected = String(contentHeight('eins\n\nWWWWWWWWWWWWWWWWWWWWWW\n漢字漢字漢字漢字漢字漢字'))
+      expect(boxHeight(container)).toEqual({ rect: expected, foreignObject: expected })
+    })
+
+    it('lässt das Bearbeitungsfeld mit dem Entwurf wachsen und wieder schrumpfen', async () => {
+      stubLayout()
+      const tree = new FaultTree()
+      tree.createComment({ x: 10, y: 10 }, 'kurz')
+      const { container } = render(<FehlerbaumEditor tree={tree} />)
+      await userEvent.dblClick(screen.getByText('kurz').closest('g')!)
+      const box = screen.getByRole<HTMLTextAreaElement>('textbox')
+      fireEvent.change(box, { target: { value: 'B'.repeat(60) } })
+      const grown = contentHeight('B'.repeat(60)) + BORDER
+      expect(box.style.height).toBe(`${grown}px`)
+      expect(boxHeight(container).rect).toBe(String(grown))
+      fireEvent.change(box, { target: { value: 'k' } })
+      expect(box.style.height).toBe('56px')
+      expect(boxHeight(container).rect).toBe('56')
+    })
+
+    it('unterschreitet nie die Mindesthöhe', () => {
+      stubLayout()
+      const tree = new FaultTree()
+      tree.createComment({ x: 10, y: 10 }, 'x')
+      const { container } = render(<FehlerbaumEditor tree={tree} />)
+      expect(boxHeight(container).rect).toBe('56')
+    })
   })
 
   describe('Abbrechen beim Verbinden', () => {

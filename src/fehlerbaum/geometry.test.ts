@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { CANVAS_PADDING, canvasOrigin, canvasPoint, canvasSize } from './geometry'
+import { CANVAS_PADDING, canvasOrigin, canvasPoint, canvasSize, commentSize } from './geometry'
+
+describe('Kommentarblöcke in der Flächenausdehnung', () => {
+  it('wachsen mit ihrem Text, und die Zeichenfläche umfasst sie', () => {
+    expect(commentSize('a\nb\nc\nd\ne').h).toBeGreaterThan(commentSize('a').h)
+    const box = commentSize('')
+    const size = canvasSize([{ box, position: { x: 900, y: 700 } }], { w: 100, h: 100 })
+    expect(size.w).toBeGreaterThanOrEqual(900 + box.w)
+    expect(size.h).toBeGreaterThanOrEqual(700 + box.h)
+    expect(canvasOrigin([{ position: { x: -50, y: -30 } }])).toEqual({ x: -50, y: -30 })
+  })
+})
 
 describe('scrollable canvas geometry', () => {
   it('uses the surface rectangle, including border and scroll offsets, exactly once', () => {
