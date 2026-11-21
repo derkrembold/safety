@@ -50,6 +50,8 @@ describe('Fehlerbaumanalyse-Reiter: Sonde (#45) und Ergebnisbereich (#23) teilen
     rerender(<FehlerbaumanalyseTab tree={tree} project={changed} />)
     expect(screen.getByText('Veraltet – Modell oder Parameter geändert.')).toBeInTheDocument()
     expect(probeNode.querySelector('.ft-probe-readout.stale')).not.toBeNull()
+    // Textlich erkennbar, nicht nur über die Farbe (Codex-Review PR #47).
+    expect(probeNode.textContent).toContain('(veraltet)')
 
     fireEvent.click(screen.getByRole('button', { name: 'Neu berechnen' }))
     expect(screen.getByText('Berechnet für den angezeigten Modellstand.')).toBeInTheDocument()

@@ -555,13 +555,19 @@ describe('FehlerbaumEditor', () => {
       expect(screen.getByText(/U ≈ 0,05/)).toBeInTheDocument()
     })
 
-    it('markiert die Anzeige als veraltet, genau wie der Ergebnisbereich aus #23', () => {
+    it('markiert die Anzeige als veraltet im Text, nicht nur über die Farbe (Konzept.md, Codex-Review PR #47)', () => {
       const tree = new FaultTree()
       const sonde = tree.create('sonde', { x: 10, y: 10 })
       const probes = { [sonde.id]: { failure: { value: 0.1 }, unavailability: { value: 0.05 } } }
       const { rerender } = render(<FehlerbaumEditor tree={tree} probes={probes} probesStale={false} />)
+      expect(screen.getByText(/F\(t\) ≈ 0,1$/)).toBeInTheDocument()
+      expect(screen.queryByText(/veraltet/)).toBeNull()
       expect(screen.getByText(/F\(t\)/).closest('.ft-probe-readout.stale')).toBeNull()
       rerender(<FehlerbaumEditor tree={tree} probes={probes} probesStale={true} />)
+      // Derselbe alte Zahlenwert, aber jetzt ausdrücklich als veraltet beschriftet --
+      // nicht nur eine andere Schriftfarbe ohne erkennbaren Textunterschied.
+      expect(screen.getByText('F(t) ≈ 0,1 (veraltet)')).toBeInTheDocument()
+      expect(screen.getByText('U ≈ 0,05 (veraltet)')).toBeInTheDocument()
       expect(screen.getByText(/F\(t\)/).closest('.ft-probe-readout.stale')).not.toBeNull()
     })
 

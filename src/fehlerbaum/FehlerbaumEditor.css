@@ -193,7 +193,11 @@
 .ft-probe-readout {
   fill: var(--text);
   font: 12px var(--mono);
-  pointer-events: none;
+  /* auto, nicht none: der volle Fehlertext einer nicht berechenbaren Teilgröße steht
+     im <title> dieses Elements -- mit pointer-events:none träfe ein Hover darüber
+     stattdessen den Hintergrund, und der Titel wäre nie erreichbar (Codex-Review PR #47).
+     Bubble-Verhalten für Klick/Ziehen bleibt unverändert: der Handler hängt am Eltern-<g>. */
+  pointer-events: auto;
 }
 .ft-probe-readout.stale {
   fill: var(--warning);

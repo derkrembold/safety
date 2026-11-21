@@ -45,9 +45,16 @@ const ERROR_TEXT: Record<ConnectError, string> = {
   cycle: 'Die Verbindung würde einen Zyklus erzeugen.',
 }
 
-/** Kompakte Anzeige am Sonden-Element (#45); der volle Fehlertext steht im `<title>`. */
-function probeLine(label: string, result: ProbeResult[keyof ProbeResult]): string {
-  return `${label} ≈ ${result.error !== undefined ? 'n. b.' : formatValue(result.value)}`
+/**
+ * Kompakte Anzeige am Sonden-Element (#45); der volle Fehlertext steht im `<title>`.
+ * "veraltet" steht ausdrücklich im Text, nicht nur in der Farbe (Konzept.md, "Stil":
+ * Status/Bedeutung nicht nur über Farbe, auch über Form/Text; Codex-Review PR #47 —
+ * sonst bleibt nach einer Parameteränderung derselbe alte Zahlenwert mit nur anderer
+ * Schriftfarbe stehen, ohne erkennbar zu machen, dass er zu einem anderen Modellstand gehört).
+ */
+function probeLine(label: string, result: ProbeResult[keyof ProbeResult], stale: boolean): string {
+  const value = result.error !== undefined ? 'n. b.' : formatValue(result.value)
+  return `${label} ≈ ${value}${stale ? ' (veraltet)' : ''}`
 }
 
 /**
@@ -623,11 +630,11 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
                             <g>
                               {title && <title>{title}</title>}
                               <text className={className} x={w + 10} y={h / 2 + 16}>
-                                {probe === undefined ? 'noch nicht berechnet' : probeLine('F(t)', probe.failure)}
+                                {probe === undefined ? 'noch nicht berechnet' : probeLine('F(t)', probe.failure, probesStale ?? false)}
                               </text>
                               {probe !== undefined && (
                                 <text className={className} x={w + 10} y={h / 2 + 30}>
-                                  {probeLine('U', probe.unavailability)}
+                                  {probeLine('U', probe.unavailability, probesStale ?? false)}
                                 </text>
                               )}
                             </g>
