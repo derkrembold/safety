@@ -1,18 +1,20 @@
 import type { ElementKind, Point } from './model'
 
-export const ELEMENT_KINDS: ElementKind[] = ['standardeingang', 'oder', 'und']
+export const ELEMENT_KINDS: ElementKind[] = ['standardeingang', 'oder', 'und', 'sonde']
 
 export const KIND_NAMES: Record<ElementKind, string> = {
   standardeingang: 'Standardeingang',
   oder: 'ODER-Verknüpfung',
   und: 'UND-Verknüpfung',
+  sonde: 'Sonde (Zwischenwert)',
 }
 
 export const GATE_SIZE = { w: 72, h: 64 }
 export const EVENT_SIZE = { w: 56, h: 56 }
+export const PROBE_SIZE = { w: 64, h: 40 }
 
 export function sizeOf(kind: ElementKind): { w: number; h: number } {
-  return kind === 'standardeingang' ? EVENT_SIZE : GATE_SIZE
+  return kind === 'standardeingang' ? EVENT_SIZE : kind === 'sonde' ? PROBE_SIZE : GATE_SIZE
 }
 
 /** Ausgang: oben in der Mitte, führt zum übergeordneten Element. */

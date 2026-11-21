@@ -20,6 +20,11 @@ function gateKind(kind: string): 'var' | 'and' | 'or' {
     case 'basicEvent': case 'standardeingang': return 'var'
     case 'and': case 'und': return 'and'
     case 'or': case 'oder': return 'or'
+    // Zwischenwert-Sonde (#45): genau ein Eingang, reine Durchleitung. Ein 1-stelliges
+    // UND/ODER ist logisch die Identität; `buildBdd`'s balancierte Faltung gibt für genau
+    // ein Kind dessen eigenen, bereits kompilierten Knoten unverändert zurück (siehe
+    // `build.ts`, `layer.length > 1`-Schleife), die Sonde ist also exakt wirkungslos.
+    case 'probe': case 'sonde': return 'and'
     default: throw new BddError(`Unsupported fault-tree kind: ${kind}`)
   }
 }
@@ -58,6 +63,12 @@ export function buildBddFromElements(
       expressions.set(node, variables.get(component)!)
     } else {
       if (!node.nodes.length) throw new BddError(`Gate ${node.id} has no inputs.`)
+      // Structural invariant, not just an editor convention: a corrupted/hand-edited
+      // project file could otherwise give a probe several inputs, which `gateKind`'s
+      // 1-ary-identity reasoning above does not cover (an n-ary AND is not a pass-through).
+      if ((node.kind === 'probe' || node.kind === 'sonde') && node.nodes.length !== 1) {
+        throw new BddError(`Probe ${node.id} must have exactly one input.`)
+      }
       visiting.add(node)
       stack.push({ node, expanded: true })
       for (let i = node.nodes.length - 1; i >= 0; i--) stack.push({ node: node.nodes[i], expanded: false })
@@ -66,14 +77,11 @@ export function buildBddFromElements(
   return buildBdd(expressions.get(root)!, options)
 }
 
-/** Shared core format: a fault-tree edge goes from a parent gate to its input. */
-export function buildBddFromDiagram(
+/** Shared element/component maps a diagram resolves to, before picking a root. */
+function elementsOf(
   diagram: DiagramDocument,
   registry: ComponentRegistry,
-  options: BddBuildOptions = {},
-): Bdd {
-  const issues = [...validateGraphStructure(diagram), ...validateComponentRefs(diagram, registry)]
-  if (issues.length) throw new BddError(issues.map(issue => issue.message).join('\n'))
+): { nodes: Map<string, FaultTreeElementLike>; componentByNode: Map<string, ComponentId>; roots: FaultTreeElementLike[] } {
   const nodes = new Map<string, FaultTreeElementLike>()
   const children = new Map<string, FaultTreeElementLike[]>()
   const componentByNode = new Map<string, ComponentId>()
@@ -95,6 +103,39 @@ export function buildBddFromDiagram(
     hasParent.add(edge.to)
   }
   const roots = [...nodes.values()].filter(node => !hasParent.has(node.id))
+  return { nodes, componentByNode, roots }
+}
+
+/** Shared core format: a fault-tree edge goes from a parent gate to its input. */
+export function buildBddFromDiagram(
+  diagram: DiagramDocument,
+  registry: ComponentRegistry,
+  options: BddBuildOptions = {},
+): Bdd {
+  const issues = [...validateGraphStructure(diagram), ...validateComponentRefs(diagram, registry)]
+  if (issues.length) throw new BddError(issues.map(issue => issue.message).join('\n'))
+  const { roots, componentByNode } = elementsOf(diagram, registry)
   if (roots.length !== 1) throw new BddError('A complete fault tree must have exactly one TOP event.')
   return buildBddFromElements(roots[0], componentByNode, options)
+}
+
+/**
+ * Same validation and construction as {@link buildBddFromDiagram}, but rooted at an
+ * arbitrary existing node instead of requiring it to be the diagram's unique TOP — used
+ * to evaluate one subtree in isolation (issue #45's Zwischenwert-Sonde: the probe shows
+ * the failure probability/unavailability of the subtree hanging off its single input,
+ * not of the whole system).
+ */
+export function buildBddFromDiagramAt(
+  diagram: DiagramDocument,
+  registry: ComponentRegistry,
+  nodeId: string,
+  options: BddBuildOptions = {},
+): Bdd {
+  const issues = [...validateGraphStructure(diagram), ...validateComponentRefs(diagram, registry)]
+  if (issues.length) throw new BddError(issues.map(issue => issue.message).join('\n'))
+  const { nodes, componentByNode } = elementsOf(diagram, registry)
+  const node = nodes.get(nodeId)
+  if (!node) throw new BddError(`Unknown node: ${nodeId}`)
+  return buildBddFromElements(node, componentByNode, options)
 }

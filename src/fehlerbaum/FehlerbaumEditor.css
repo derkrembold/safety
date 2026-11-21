@@ -175,6 +175,37 @@
   pointer-events: none;
 }
 
+/* Sonde (#45): gestrichelt wie der Kommentarblock, aber mit eigenem Randton und ohne
+   dessen flächige Füllung, damit sie weder mit Gattern noch mit Kommentaren verwechselt wird. */
+.glyph.probe {
+  fill: var(--bg-raised);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+.ft-element.selected .glyph.probe {
+  stroke-width: 2.5;
+}
+.glyph-symbol.probe {
+  font: 600 13px var(--sans);
+}
+
+.ft-probe-readout {
+  fill: var(--text);
+  font: 12px var(--mono);
+  /* auto, nicht none: der volle Fehlertext einer nicht berechenbaren Teilgröße steht
+     im <title> dieses Elements -- mit pointer-events:none träfe ein Hover darüber
+     stattdessen den Hintergrund, und der Titel wäre nie erreichbar (Codex-Review PR #47).
+     Bubble-Verhalten für Klick/Ziehen bleibt unverändert: der Handler hängt am Eltern-<g>. */
+  pointer-events: auto;
+}
+.ft-probe-readout.stale {
+  fill: var(--warning);
+}
+.ft-probe-readout.error {
+  fill: var(--danger);
+}
+
 .ft-connection {
   fill: none;
   stroke: var(--text-h);

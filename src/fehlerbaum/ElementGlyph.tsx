@@ -26,5 +26,15 @@ export function ElementGlyph({ kind }: { kind: ElementKind }) {
           </text>
         </>
       )
+    case 'sonde':
+      // Gestrichelt statt durchgezogen: reine Durchleitung, kein eigenes Gatter.
+      return (
+        <>
+          <rect className="glyph probe" x={0} y={0} width={64} height={40} rx={10} />
+          <text className="glyph-symbol probe" x={32} y={24} textAnchor="middle">
+            {'F/U'}
+          </text>
+        </>
+      )
   }
 }

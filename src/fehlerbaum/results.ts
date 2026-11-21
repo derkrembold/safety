@@ -1,5 +1,5 @@
 import type { ComponentDefinition, Project } from '../core'
-import { buildBddFromDiagram, systemReliability, systemAvailability, systemPfdAvg, bddFailureProbability } from '../core/bdd'
+import { buildBddFromDiagram, buildBddFromDiagramAt, systemReliability, systemAvailability, systemPfdAvg, bddFailureProbability } from '../core/bdd'
 import { minimalCutSets } from '../core/bdd/cutSets'
 import type { Bdd } from '../core/bdd'
 import type { ComponentId } from '../core'
@@ -33,13 +33,27 @@ export interface ComponentResult {
   component: ComponentDefinition
   reliability: Value; failure: Value; availability: Value; unavailability: Value
 }
+/** Zwischenwert-Sonde (#45): nur F(t) und die stationäre Nichtverfügbarkeit U des Teilbaums
+ * an ihrem Eingang, keine eigene R(t)/PFDavg (so von Derk abgegrenzt, siehe Issue #45). */
+export interface ProbeResult {
+  failure: Value; unavailability: Value
+}
 export interface Results {
   reliability: Value; failure: Value; availability: Value; unavailability: Value; pfd: Value
   components: ComponentResult[]; cutSets: readonly (readonly ComponentId[])[]; cutSetError?: string
+  /** Je Sonden-Knoten-ID (#45); leer, wenn der Baum keine Sonden enthält. */
+  probes: Record<string, ProbeResult>
   warnings: string[]
 }
 function positive(value: number, label: string) {
   if (!Number.isFinite(value) || value <= 0) throw new Error(`${label} fehlt oder ist ungültig (endliche Zahl > 0 erforderlich).`)
+}
+/** Components a BDD actually references — a subtree BDD (Sonde) only needs its own,
+ * not every component in the whole project, so an unrelated branch without e.g. a
+ * repair rate must not block a probe whose own subtree is otherwise fine. */
+function componentsOf(bdd: Bdd, components: readonly ComponentDefinition[]): ComponentDefinition[] {
+  const ids = new Set(bdd.nodes.flatMap(n => n.kind === 'decision' ? [n.component] : []))
+  return components.filter(c => ids.has(c.id))
 }
 function one(component: ComponentDefinition): Bdd {
   return { root: 2, variableOrder: [component.id], nodes: [{kind:'terminal',value:0},{kind:'terminal',value:1},{kind:'decision',component:component.id,low:0,high:1}] }
@@ -53,8 +67,10 @@ export function calculateResults(project: Project): Results {
   const ids = [...new Set(Object.values(diagram.nodes).flatMap(n => n.componentRef ? [n.componentRef] : []))].sort()
   const components = ids.map(id => ({...project.components[id]}))
   const t = project.parameters.missionTimeHours, tau = project.parameters.testIntervalHours
-  const validRates = () => { for (const c of components) positive(c.failureRate, `Ausfallrate λ für ${c.name} (${c.id})`) }
-  const validRepair = () => { for (const c of components) { if (c.repairRate === undefined) throw new Error('Nicht berechenbar – Reparaturrate fehlt.'); positive(c.repairRate, `Reparaturrate μ für ${c.name}`) } }
+  const needRates = (defs: readonly ComponentDefinition[]) => { for (const c of defs) positive(c.failureRate, `Ausfallrate λ für ${c.name} (${c.id})`) }
+  const needRepair = (defs: readonly ComponentDefinition[]) => { for (const c of defs) { if (c.repairRate === undefined) throw new Error('Nicht berechenbar – Reparaturrate fehlt.'); positive(c.repairRate, `Reparaturrate μ für ${c.name}`) } }
+  const validRates = () => needRates(components)
+  const validRepair = () => needRepair(components)
   const failure = (graph: Bdd, defs: ComponentDefinition[]) => bddFailureProbability(graph, new Map(defs.map(c => [c.id, -Math.expm1(-c.failureRate * t)])))
   const unavailable = (graph: Bdd, defs: ComponentDefinition[]) => bddFailureProbability(graph, new Map(defs.map(c => {
     const mu = c.repairRate!, lambda = c.failureRate
@@ -62,6 +78,22 @@ export function calculateResults(project: Project): Results {
   })))
   let cutSets: Results['cutSets'] = [], cutSetError: string | undefined
   try { cutSets = minimalCutSets(bdd) } catch (e) { cutSetError = String(e instanceof Error ? e.message : e) }
+  const probes: Results['probes'] = {}
+  for (const [id, node] of Object.entries(diagram.nodes)) {
+    if (node.kind !== 'probe' && node.kind !== 'sonde') continue
+    // The main `buildBddFromDiagram` above already succeeded, so every probe is
+    // guaranteed to have exactly one input (`buildBddFromElements`'s own structural
+    // check) — a missing edge here would mean that guarantee broke, which is a bug,
+    // not a user-facing "nicht berechenbar" case, so it is not wrapped in `attempt`.
+    const childId = diagram.edges.find(edge => edge.from === id)?.to
+    if (childId === undefined) throw new Error(`Sonde ${id} ohne Eingang trotz erfolgreichem Baumaufbau.`)
+    const sub = buildBddFromDiagramAt(diagram, project.components, childId)
+    const subComponents = componentsOf(sub, components)
+    probes[id] = {
+      failure: attempt(() => { needRates(subComponents); positive(t, 'Missionsdauer t'); return failure(sub, subComponents) }),
+      unavailability: attempt(() => { needRates(subComponents); needRepair(subComponents); return unavailable(sub, subComponents) }),
+    }
+  }
   return {
     reliability: attempt(() => { validRates(); positive(t,'Missionsdauer t'); return systemReliability(bdd,project.components,t) }),
     failure: attempt(() => { validRates(); positive(t,'Missionsdauer t'); return failure(bdd,components) }),
@@ -78,7 +110,7 @@ export function calculateResults(project: Project): Results {
         availability: attempt(() => { check(); repair(); return systemAvailability(graph,registry) }),
         unavailability: attempt(() => { check(); repair(); return unavailable(graph,[c]) }),
       }
-    }), cutSets, cutSetError,
+    }), cutSets, cutSetError, probes,
     warnings: components.some(c => c.failureRate * tau >= .1) ? ['λ · τ ≥ 0,1: Die lineare PFD-Näherung ist außerhalb des Bereichs kleiner Produkte. q(t) wird auf [0,1] begrenzt.'] : [],
   }
 }

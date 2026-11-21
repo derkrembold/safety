@@ -3,7 +3,7 @@ import {
   type Annotation, type ComponentId, type DiagramNode, type Project,
 } from '../core'
 
-export type ElementKind = 'standardeingang' | 'oder' | 'und'
+export type ElementKind = 'standardeingang' | 'oder' | 'und' | 'sonde'
 
 export interface Point {
   x: number
@@ -64,6 +64,24 @@ export class UndVerknuepfung extends FaultTreeElement {
   }
 }
 
+/**
+ * Zwischenwert-Sonde (#45): reine Durchleitung mit genau einem Eingang und einem
+ * Ausgang. Logisch unverändert durch (in `gateKind`/`src/core/bdd/faultTree.ts` als
+ * 1-stelliges UND behandelt, was ohne Wirkung bleibt — siehe dort), zeigt aber den
+ * berechneten Zwischenwert (F(t), U) des an ihrem Eingang hängenden Teilbaums an.
+ * `acceptsInputs` ist absichtlich dynamisch: sobald ein Eingang verbunden ist, nimmt
+ * `connect()` keinen weiteren mehr an (derselbe Fehlerpfad wie bei einem Standardeingang).
+ */
+export class Sonde extends FaultTreeElement {
+  constructor(id: string, label: string) {
+    super(id, 'sonde', label)
+  }
+
+  get acceptsInputs(): boolean {
+    return this.nodes.length === 0
+  }
+}
+
 export type ConnectError =
   | 'unknown-element'
   | 'same-element'
@@ -83,6 +101,15 @@ const LABEL_PREFIX: Record<ElementKind, string> = {
   standardeingang: 'Eingang',
   oder: 'ODER',
   und: 'UND',
+  sonde: 'Sonde',
+}
+
+/** Projektweiter Diagrammknoten-`kind` je Editor-`ElementKind`, siehe `toProject()`. */
+const PROJECT_KIND: Record<ElementKind, string> = {
+  standardeingang: 'basicEvent',
+  oder: 'or',
+  und: 'and',
+  sonde: 'probe',
 }
 
 /**
@@ -106,6 +133,7 @@ export class FaultTree {
     standardeingang: 1,
     oder: 1,
     und: 1,
+    sonde: 1,
   }
 
   /** Rebuild the editor projection without requiring a complete, calculable tree. */
@@ -123,6 +151,7 @@ export class FaultTree {
         element = new Standardeingang(node.id, label, node.componentRef)
       } else if (node.kind === 'oder' || node.kind === 'or') element = new OderVerknuepfung(node.id, label)
       else if (node.kind === 'und' || node.kind === 'and') element = new UndVerknuepfung(node.id, label)
+      else if (node.kind === 'sonde' || node.kind === 'probe') element = new Sonde(node.id, label)
       else throw new Error(`Unbekanntes Fehlerbaum-Element: ${node.kind}`)
       tree.elements.set(node.id, element)
       tree.layout.set(node.id, diagram.layout[node.id] ?? { x: 40, y: 40 })
@@ -147,7 +176,7 @@ export class FaultTree {
       const componentRef = element instanceof Standardeingang ? element.componentRef : undefined
       nodes[element.id] = {
         id: asNodeId(element.id),
-        kind: element.kind === 'standardeingang' ? 'basicEvent' : element.kind === 'oder' ? 'or' : 'and',
+        kind: PROJECT_KIND[element.kind],
         label: element.label,
         ...(componentRef === undefined ? {} : { componentRef }),
       }
@@ -201,7 +230,9 @@ export class FaultTree {
         ? new Standardeingang(id, label)
         : kind === 'oder'
           ? new OderVerknuepfung(id, label)
-          : new UndVerknuepfung(id, label)
+          : kind === 'und'
+            ? new UndVerknuepfung(id, label)
+            : new Sonde(id, label)
     this.elements.set(id, element)
     this.layout.set(id, position)
     return element
