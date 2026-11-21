@@ -86,4 +86,44 @@ describe('scrollable canvas geometry', () => {
     expect(canvasSize(items, { w: 800, h: 600 }, measured, undefined, origin)).toEqual({ w: 2048, h: 2048 })
     expect(canvasSize(items, { w: 800, h: 600 }, measured, rename, origin)).toEqual({ w: 2048, h: 2048 })
   })
+
+  describe('reserviert Scrollbalken-Platz nur auf der jeweils anderen Achse (Issue #48/Codex-Review PR #49)', () => {
+    const scrollbar = { w: 15, h: 15 }
+
+    it('ohne angegebene Scrollbalkengröße verhält es sich wie zuvor (kein Reservieren)', () => {
+      const far = { kind: 'standardeingang' as const, label: 'X', position: { x: 2000, y: 0 } }
+      expect(canvasSize([far], { w: 800, h: 600 })).toEqual({ w: 2000 + 56 + 10 + 1 * 14 + 2 * CANVAS_PADDING, h: 600 })
+    })
+
+    it('bleibt beim leeren Baum unberührt, egal wie groß der Scrollbalken ist', () => {
+      expect(canvasSize([], { w: 800, h: 600 }, undefined, undefined, undefined, scrollbar))
+        .toEqual({ w: 800, h: 600 })
+    })
+
+    it('reserviert Höhe für den horizontalen Scrollbalken, wenn nur die Breite überläuft', () => {
+      // Nur x überläuft (ein Element weit rechts, y bleibt klein): ohne Reservierung würde
+      // die Fläche trotzdem auf die volle Höhe gesetzt, obwohl der dann erscheinende
+      // horizontale Scrollbalken real weniger Höhe übrig lässt -- das erzeugte laut Codex
+      // einen unnötigen zweiten (vertikalen) Scrollbalken, obwohl der Inhalt vertikal
+      // vollständig hineinpasst.
+      const far = { kind: 'standardeingang' as const, label: 'X', position: { x: 2000, y: 0 } }
+      const size = canvasSize([far], { w: 800, h: 600 }, undefined, undefined, undefined, scrollbar)
+      expect(size.w).toBe(2000 + 56 + 10 + 1 * 14 + 2 * CANVAS_PADDING)
+      expect(size.h).toBe(600 - scrollbar.h)
+    })
+
+    it('reserviert Breite für den vertikalen Scrollbalken, wenn nur die Höhe überläuft', () => {
+      const far = { kind: 'standardeingang' as const, label: 'X', position: { x: 40, y: 2000 } }
+      const size = canvasSize([far], { w: 800, h: 600 }, undefined, undefined, undefined, scrollbar)
+      expect(size.w).toBe(800 - scrollbar.w)
+      expect(size.h).toBe(2000 + 56 + 2 * CANVAS_PADDING)
+    })
+
+    it('reserviert auf keiner Achse, wenn beide ohnehin schon überlaufen', () => {
+      const far = { kind: 'standardeingang' as const, label: 'X', position: { x: 2000, y: 2000 } }
+      const size = canvasSize([far], { w: 800, h: 600 }, undefined, undefined, undefined, scrollbar)
+      expect(size.w).toBe(2000 + 56 + 10 + 1 * 14 + 2 * CANVAS_PADDING)
+      expect(size.h).toBe(2000 + 56 + 2 * CANVAS_PADDING)
+    })
+  })
 })

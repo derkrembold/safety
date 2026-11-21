@@ -97,6 +97,15 @@ export function canvasSize(
   measured?: { right: number; bottom: number },
   rename?: { right: number; bottom: number },
   origin: Point = { x: 0, y: 0 },
+  // The actual width/height a scrollbar takes up on the current system (0/0 for none seen
+  // yet, or an overlay-scrollbar system). `viewport` itself is the *scrollbar-independent*
+  // outer box (see FehlerbaumEditor.tsx's `measure()`, Issue #48) precisely so it cannot
+  // oscillate; this is the one place that still needs to know actual scrollbar space, to
+  // reserve it on the OTHER axis only when one axis actually scrolls — otherwise the floor
+  // below would hand out the full, scrollbar-free `viewport` on both axes even while a real
+  // scrollbar on one axis is already eating into the other (Codex review, PR #49: a single
+  // element far to one side forced an unneeded scrollbar on the orthogonal axis too).
+  scrollbarSize: CanvasSize = { w: 0, h: 0 },
 ): CanvasSize {
   let right = 0
   let bottom = 0
@@ -120,8 +129,14 @@ export function canvasSize(
   // negative SVG extent — either alone still floors at 0 via the other term, but together
   // neither term does, and the anchor this mirrors from canvasOrigin would silently vanish
   // (Codex review, PR #36).
+  const contentW = Math.max(0, right, rename?.right ?? 0) - origin.x + 2 * CANVAS_PADDING
+  const contentH = Math.max(0, bottom, rename?.bottom ?? 0) - origin.y + 2 * CANVAS_PADDING
+  const scrollsVertically = contentH > viewport.h
+  const scrollsHorizontally = contentW > viewport.w
+  const widthFloor = scrollsVertically ? viewport.w - scrollbarSize.w : viewport.w
+  const heightFloor = scrollsHorizontally ? viewport.h - scrollbarSize.h : viewport.h
   return {
-    w: Math.ceil(Math.max(viewport.w, Math.max(0, right, rename?.right ?? 0) - origin.x + 2 * CANVAS_PADDING)),
-    h: Math.ceil(Math.max(viewport.h, Math.max(0, bottom, rename?.bottom ?? 0) - origin.y + 2 * CANVAS_PADDING)),
+    w: Math.ceil(Math.max(widthFloor, contentW)),
+    h: Math.ceil(Math.max(heightFloor, contentH)),
   }
 }
