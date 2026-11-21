@@ -232,12 +232,23 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
     const canvas = canvasRef.current
     if (!canvas) return
     const measure = () => {
-      const next = { w: canvas.clientWidth, h: canvas.clientHeight }
+      // getBoundingClientRect() statt clientWidth/clientHeight: Letztere sind die
+      // *innere* Inhaltsbox und schrumpfen, sobald `.ft-canvas` (overflow: auto) selbst
+      // einen Scrollbalken zeigt. Die Fläche wird dann auf diesen kleineren Viewport
+      // gesetzt, wodurch kein Überlauf mehr besteht, der Scrollbalken verschwindet, der
+      // Viewport dadurch wieder wächst, die Fläche mitwächst, erneut überläuft, der
+      // Scrollbalken wiederkommt — eine endlose Rückkopplungsschleife (Issue #48, mit
+      // Playwright gemessen: 239 von 240 Frames wechselten bei einer betroffenen
+      // Fensterbreite). Die äußere (Border-)Box aus getBoundingClientRect() hängt dagegen
+      // nicht vom eigenen Scrollbalken ab, da `.ft-canvas` seine Größe per `inset: 0` vom
+      // Elternelement erhält. -2 für den 1px-Rahmen auf jeder Seite.
+      const rect = canvas.getBoundingClientRect()
+      const next = { w: Math.floor(rect.width) - 2, h: Math.floor(rect.height) - 2 }
       setViewport((previous) => previous.w === next.w && previous.h === next.h ? previous : next)
     }
     measure()
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
-    observer?.observe(canvas)
+    observer?.observe(canvas, { box: 'border-box' })
     window.addEventListener('resize', measure)
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure) }
   }, [])
