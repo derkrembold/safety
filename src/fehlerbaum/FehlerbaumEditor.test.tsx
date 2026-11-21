@@ -351,8 +351,49 @@ describe('FehlerbaumEditor', () => {
     function mockCanvasSize(width: number, height: number) {
       vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(width)
       vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(height)
+      // Der Viewport wird aus getBoundingClientRect() abgeleitet, nicht mehr aus
+      // clientWidth/clientHeight (Issue #48: die schrumpfen, sobald ein Scrollbalken
+      // erscheint, was eine Rückkopplungsschleife erzeugte). +2 für den 1px-Rahmen auf
+      // jeder Seite (`.ft-canvas`), den `measure()` wieder abzieht. Eine einzelne Instanz
+      // (z. B. `.ft-surface`) kann das pro Test weiterhin eigenständig überschreiben.
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+        width: width + 2, height: height + 2, top: 0, left: 0,
+        right: width + 2, bottom: height + 2, x: 0, y: 0, toJSON: () => ({}),
+      })
     }
     afterEach(() => vi.restoreAllMocks())
+
+    it('lässt sich von einem schwankenden clientWidth/clientHeight (Scrollbalken-An/Aus) nicht beeinflussen (Issue #48)', () => {
+      // clientWidth/clientHeight schrumpfen im echten Browser, sobald `.ft-canvas` selbst
+      // einen Scrollbalken zeigt -- das erzeugte eine endlose Rückkopplungsschleife, weil
+      // die Fläche bis PR #48 auf genau diesen schwankenden Wert gesetzt wurde. Hier wird
+      // genau das nachgebildet: getBoundingClientRect() bleibt stabil, clientWidth/
+      // clientHeight schwanken trotzdem -- die Fläche darf sich nur nach Ersterem richten.
+      mockCanvasSize(200, 200)
+      const tree = new FaultTree()
+      render(<FehlerbaumEditor tree={tree} />)
+      const surface = screen.getByRole('region', { name: 'Fehlerbaum-Zeichenfläche' }).querySelector('.ft-surface') as HTMLElement
+      const stable = { width: surface.style.width, height: surface.style.height }
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(184)
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(185)
+      fireEvent(window, new Event('resize'))
+      expect(surface.style.width).toBe(stable.width)
+      expect(surface.style.height).toBe(stable.height)
+    })
+
+    it('lernt die reale Scrollbalkenbreite und reserviert sie fortan auf der jeweils anderen Achse (Codex-Review PR #49)', () => {
+      // Simuliert einen bereits vorhandenen horizontalen Scrollbalken: clientHeight ist um
+      // dessen Breite (15px) kleiner als die stabile (scrollbalkenunabhängige) Höhe aus
+      // getBoundingClientRect(). Ohne Lernen würde die Fläche trotzdem auf die volle Höhe
+      // gesetzt, ein unnötiger zweiter (vertikaler) Scrollbalken entstünde (Codex-Fund).
+      mockCanvasSize(800, 600)
+      vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(585)
+      const tree = new FaultTree()
+      tree.create('oder', { x: 2000, y: 0 }) // weit rechts: nur die Breite läuft über
+      render(<FehlerbaumEditor tree={tree} />)
+      const surface = screen.getByRole('region', { name: 'Fehlerbaum-Zeichenfläche' }).querySelector('.ft-surface') as HTMLElement
+      expect(parseFloat(surface.style.height)).toBe(600 - 15)
+    })
 
     it('erweitert die Fläche statt ein Element am Viewportrand zu begrenzen', () => {
       mockCanvasSize(200, 200)

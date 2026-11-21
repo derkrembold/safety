@@ -162,6 +162,16 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
   const surfaceRef = useRef<HTMLDivElement>(null)
   const drawingRef = useRef<SVGGElement>(null)
   const [viewport, setViewport] = useState({ w: 0, h: 0 })
+  /**
+   * Scrollbalken-Platzbedarf dieses Systems, nur je beobachtet, nie wieder verkleinert
+   * (Codex-Review PR #49): Issue #48s Fix macht `viewport` bewusst unabhängig vom eigenen
+   * Scrollbalken, damit er die Fläche nicht mehr rückkoppelnd beeinflusst -- `canvasSize`
+   * braucht den tatsächlichen Platzbedarf aber trotzdem, um bei Bedarf auf nur einer Achse
+   * Platz für den Scrollbalken der jeweils anderen zu reservieren. Ein monoton wachsender,
+   * einmal gelernter Wert kann die Rückkopplung nicht wieder einführen: er stellt sich
+   * höchstens einmal auf die reale (konstante) Breite ein und ändert sich danach nicht mehr.
+   */
+  const [scrollbarSize, setScrollbarSize] = useState({ w: 0, h: 0 })
   const [measuredBounds, setMeasuredBounds] = useState<{ right: number; bottom: number }>()
   /** Im Browser gemessene Kommentarhöhen (umbrochener Text bzw. Bearbeitungsfeld) je Kennung. */
   const [commentHeights, setCommentHeights] = useState<ReadonlyMap<string, number>>(() => new Map())
@@ -232,12 +242,23 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
     const canvas = canvasRef.current
     if (!canvas) return
     const measure = () => {
-      const next = { w: canvas.clientWidth, h: canvas.clientHeight }
+      // getBoundingClientRect() statt clientWidth/clientHeight: Letztere sind die
+      // *innere* Inhaltsbox und schrumpfen, sobald `.ft-canvas` (overflow: auto) selbst
+      // einen Scrollbalken zeigt. Die Fläche wird dann auf diesen kleineren Viewport
+      // gesetzt, wodurch kein Überlauf mehr besteht, der Scrollbalken verschwindet, der
+      // Viewport dadurch wieder wächst, die Fläche mitwächst, erneut überläuft, der
+      // Scrollbalken wiederkommt — eine endlose Rückkopplungsschleife (Issue #48, mit
+      // Playwright gemessen: 239 von 240 Frames wechselten bei einer betroffenen
+      // Fensterbreite). Die äußere (Border-)Box aus getBoundingClientRect() hängt dagegen
+      // nicht vom eigenen Scrollbalken ab, da `.ft-canvas` seine Größe per `inset: 0` vom
+      // Elternelement erhält. -2 für den 1px-Rahmen auf jeder Seite.
+      const rect = canvas.getBoundingClientRect()
+      const next = { w: Math.floor(rect.width) - 2, h: Math.floor(rect.height) - 2 }
       setViewport((previous) => previous.w === next.w && previous.h === next.h ? previous : next)
     }
     measure()
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
-    observer?.observe(canvas)
+    observer?.observe(canvas, { box: 'border-box' })
     window.addEventListener('resize', measure)
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure) }
   }, [])
@@ -538,7 +559,19 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
       bottom: editedPosition.y + sizeOf(editedElement.kind).h / 2 + 20,
     } : undefined,
     origin,
+    scrollbarSize,
   )
+
+  // Nach dem Anwenden der (ggf. neuen) Surface-Größe prüfen, ob `.ft-canvas` dadurch
+  // tatsächlich einen eigenen Scrollbalken zeigt, und dessen Breite lernen -- siehe
+  // Kommentar an `scrollbarSize` oben. `viewport` selbst bleibt dabei unberührt.
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const w = Math.max(scrollbarSize.w, viewport.w - canvas.clientWidth)
+    const h = Math.max(scrollbarSize.h, viewport.h - canvas.clientHeight)
+    if (w !== scrollbarSize.w || h !== scrollbarSize.h) setScrollbarSize({ w, h })
+  }, [surfaceSize.w, surfaceSize.h, viewport.w, viewport.h, scrollbarSize])
 
   return (
     <div className={results ? 'ft-editor with-results' : 'ft-editor'}>
