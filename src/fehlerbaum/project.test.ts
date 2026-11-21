@@ -47,7 +47,7 @@ describe('fault tree project projection', () => {
   })
 
   it.each<[ElementKind, string]>([
-    ['standardeingang', 'Eingang'], ['oder', 'ODER'], ['und', 'UND'],
+    ['standardeingang', 'Eingang'], ['oder', 'ODER'], ['und', 'UND'], ['sonde', 'Sonde'],
   ])('avoids occupied labels for %s after renaming and importing', (kind, prefix) => {
     const tree = new FaultTree()
     const renamed = tree.create(kind, { x: 10, y: 20 })

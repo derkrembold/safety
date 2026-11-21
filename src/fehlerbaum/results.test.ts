@@ -1,9 +1,27 @@
 import { describe, it, expect } from 'vitest'
 import { sharedSensorProject, SENSOR, VALVE_A, VALVE_B } from '../core/fixtures'
-import { createEmptyProject, asComponentId } from '../core'
+import { createEmptyProject, asComponentId, asEdgeId, asNodeId, type Project } from '../core'
 import { buildBdd } from '../core/bdd'
 import { minimalCutSets } from '../core/bdd/cutSets'
 import { calculateResults, silBand, resultsKey, formatValue } from './results'
+
+/** Fügt eine Sonde (#45) zwischen TOP und `n-and-a` ein, ohne sonst etwas zu ändern. */
+function withProbeAtAndA(project: Project): Project {
+  const diagram = project.diagrams.fehlerbaum!
+  const withNode = { ...diagram, nodes: { ...diagram.nodes, 'probe-1': { id: asNodeId('probe-1'), kind: 'probe' } } }
+  const rewired = {
+    ...withNode,
+    edges: [
+      ...withNode.edges.map((edge) =>
+        edge.from === asNodeId('n-top') && edge.to === asNodeId('n-and-a')
+          ? { ...edge, to: asNodeId('probe-1') }
+          : edge,
+      ),
+      { id: asEdgeId('probe-edge'), from: asNodeId('probe-1'), to: asNodeId('n-and-a') },
+    ],
+  }
+  return { ...project, diagrams: { ...project.diagrams, fehlerbaum: rewired } }
+}
 
 describe('Kommentarblöcke (#24) und Ergebnisse', () => {
   const note = { id: 'a-1', text: 'Annahme', position: { x: 0, y: 400 } }
@@ -93,6 +111,49 @@ describe('fault tree results', () => {
     expect(calculateResults(p).pfd.error).toMatch(/overflows/)
   })
 })
+describe('Zwischenwert-Sonde (#45)', () => {
+  it('zeigt F(t)/U des Teilbaums am Eingang, nicht des Gesamtsystems', () => {
+    const p = withProbeAtAndA(sharedSensorProject()), t = p.parameters.missionTimeHours
+    const r = calculateResults(p)
+    const q = (id: typeof SENSOR) => -Math.expm1(-p.components[id].failureRate * t)
+    const u = (id: typeof SENSOR) => { const c = p.components[id]; return c.failureRate / (c.failureRate + c.repairRate!) }
+    // and-a = UND(Sensor, Valve A): Ausfall nur wenn beide ausfallen.
+    expect(r.probes['probe-1'].failure.value).toBeCloseTo(q(SENSOR) * q(VALVE_A), 14)
+    expect(r.probes['probe-1'].unavailability.value).toBeCloseTo(u(SENSOR) * u(VALVE_A), 14)
+    // Deutlich vom Systemwert verschieden, sonst würde ein Vertauschen von Teilbaum und
+    // TOP in der Implementierung durch diesen Test nicht auffallen.
+    expect(r.probes['probe-1'].failure.value).not.toBeCloseTo(r.failure.value!, 3)
+  })
+
+  it('bleibt logisch wirkungslos: Systemwerte, MCS und Komponententabelle sind mit und ohne Sonde identisch', () => {
+    const { probes: plainProbes, ...plainRest } = calculateResults(sharedSensorProject())
+    const { probes: withProbeProbes, ...withoutProbes } = calculateResults(withProbeAtAndA(sharedSensorProject()))
+    expect(withoutProbes).toEqual(plainRest)
+    expect(plainProbes).toEqual({})
+    expect(withProbeProbes['probe-1']).toBeDefined()
+  })
+
+  it('bezieht eine fehlende Reparaturrate nur auf die tatsächlich betroffenen Komponenten im Teilbaum', () => {
+    const p = withProbeAtAndA(sharedSensorProject())
+    // Valve B gehört zu and-b, nicht zum Teilbaum der Sonde (and-a) — ihr fehlt die
+    // Reparaturrate nur für die Systemwerte, nicht für diese Sonde.
+    p.components = { ...p.components, [VALVE_B]: { ...p.components[VALVE_B], repairRate: undefined } }
+    const r = calculateResults(p)
+    expect(r.availability.error).toMatch(/Reparaturrate fehlt/)
+    expect(r.unavailability.error).toMatch(/Reparaturrate fehlt/)
+    expect(r.probes['probe-1'].unavailability.error).toBeUndefined()
+    expect(r.probes['probe-1'].unavailability.value).toBeGreaterThan(0)
+  })
+
+  it('meldet eine fehlende Reparaturrate einer Komponente im eigenen Teilbaum weiterhin an der Sonde', () => {
+    const p = withProbeAtAndA(sharedSensorProject())
+    p.components = { ...p.components, [VALVE_A]: { ...p.components[VALVE_A], repairRate: undefined } }
+    const r = calculateResults(p)
+    expect(r.probes['probe-1'].unavailability.error).toMatch(/Reparaturrate fehlt/)
+    expect(r.probes['probe-1'].failure.value).toBeGreaterThan(0)
+  })
+})
+
 describe('Low-Demand SIL boundaries', () => {
   it('uses German decimal separators for ordinary and scientific values', () => {
     expect(formatValue(0.125)).toBe('0,125')

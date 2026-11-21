@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { addEdge, addNode, emptyDiagram } from '../diagram'
 import { asComponentId, asEdgeId, asNodeId } from '../ids'
-import { SENSOR, sharedSensorProject } from '../fixtures'
-import { buildBddFromDiagram, buildBddFromElements } from './faultTree'
+import { SENSOR, VALVE_A, sharedSensorProject } from '../fixtures'
+import { buildBddFromDiagram, buildBddFromDiagramAt, buildBddFromElements } from './faultTree'
 import type { FaultTreeElementLike } from './faultTree'
 import { bddFailureProbability, systemPfdAvg } from './probability'
 import { Standardeingang, UndVerknuepfung } from '../../fehlerbaum/model'
@@ -62,5 +62,57 @@ describe('fault-tree adapters', () => {
       id: asNodeId('n-sensor-1'), kind: 'basicEvent', componentRef: asComponentId('ghost'),
     })
     expect(() => buildBddFromDiagram(document, project.components)).toThrow(/unknown component/)
+  })
+})
+
+describe('Zwischenwert-Sonde (#45): reine Durchleitung', () => {
+  it('ist logisch wirkungslos: dieselbe BDD mit und ohne eingefügte Sonde', () => {
+    const project = sharedSensorProject()
+    const without = buildBddFromDiagram(project.diagrams.fehlerbaum!, project.components)
+    let document = project.diagrams.fehlerbaum!
+    document = addNode(document, { id: asNodeId('probe-1'), kind: 'probe' })
+    // TOP -> and-a wird zu TOP -> Sonde -> and-a, alles andere bleibt unverändert.
+    document = {
+      ...document,
+      edges: document.edges.map((edge) =>
+        edge.from === asNodeId('n-top') && edge.to === asNodeId('n-and-a')
+          ? { ...edge, to: asNodeId('probe-1') }
+          : edge,
+      ),
+    }
+    document = addEdge(document, { id: asEdgeId('probe-edge'), from: asNodeId('probe-1'), to: asNodeId('n-and-a') })
+    const withProbe = buildBddFromDiagram(document, project.components)
+    expect(withProbe).toEqual(without)
+  })
+
+  it('verlangt genau einen Eingang, auch bei einem fremd erzeugten (nicht über den Editor entstandenen) Dokument', () => {
+    const probe: FaultTreeElementLike = {
+      id: 'p', kind: 'probe', nodes: [
+        { id: 'a', kind: 'standardeingang', nodes: [] },
+        { id: 'b', kind: 'standardeingang', nodes: [] },
+      ],
+    }
+    expect(() => buildBddFromElements(probe, new Map([['a', SENSOR], ['b', SENSOR]]))).toThrow(/exactly one input/)
+  })
+
+  it('buildBddFromDiagramAt wertet einen beliebigen Teilbaum isoliert aus, wie buildBddFromElements auf dessen Wurzel', () => {
+    const project = sharedSensorProject()
+    const diagram = project.diagrams.fehlerbaum!
+    const atAndA = buildBddFromDiagramAt(diagram, project.components, 'n-and-a')
+    const direct = buildBddFromElements(
+      {
+        id: 'n-and-a', kind: 'and', nodes: [
+          { id: 'n-sensor-1', kind: 'basicEvent', nodes: [] },
+          { id: 'n-valve-a', kind: 'basicEvent', nodes: [] },
+        ],
+      },
+      new Map([['n-sensor-1', SENSOR], ['n-valve-a', VALVE_A]]),
+    )
+    expect(atAndA).toEqual(direct)
+  })
+
+  it('lehnt eine unbekannte Knoten-ID ab', () => {
+    const project = sharedSensorProject()
+    expect(() => buildBddFromDiagramAt(project.diagrams.fehlerbaum!, project.components, 'ghost')).toThrow(/Unknown node/)
   })
 })

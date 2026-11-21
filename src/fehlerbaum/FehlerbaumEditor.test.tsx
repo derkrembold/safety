@@ -544,4 +544,49 @@ describe('FehlerbaumEditor', () => {
     })
   })
 
+  describe('Zwischenwert-Sonde (#45)', () => {
+    it('zeigt F(t)/U am Element, solange eine Berechnung vorliegt, und sonst einen Hinweis', () => {
+      const tree = new FaultTree()
+      const sonde = tree.create('sonde', { x: 10, y: 10 })
+      const { rerender } = render(<FehlerbaumEditor tree={tree} />)
+      expect(screen.getByText('noch nicht berechnet')).toBeInTheDocument()
+      rerender(<FehlerbaumEditor tree={tree} probes={{ [sonde.id]: { failure: { value: 0.1 }, unavailability: { value: 0.05 } } }} />)
+      expect(screen.getByText(/F\(t\) ≈ 0,1/)).toBeInTheDocument()
+      expect(screen.getByText(/U ≈ 0,05/)).toBeInTheDocument()
+    })
+
+    it('markiert die Anzeige als veraltet, genau wie der Ergebnisbereich aus #23', () => {
+      const tree = new FaultTree()
+      const sonde = tree.create('sonde', { x: 10, y: 10 })
+      const probes = { [sonde.id]: { failure: { value: 0.1 }, unavailability: { value: 0.05 } } }
+      const { rerender } = render(<FehlerbaumEditor tree={tree} probes={probes} probesStale={false} />)
+      expect(screen.getByText(/F\(t\)/).closest('.ft-probe-readout.stale')).toBeNull()
+      rerender(<FehlerbaumEditor tree={tree} probes={probes} probesStale={true} />)
+      expect(screen.getByText(/F\(t\)/).closest('.ft-probe-readout.stale')).not.toBeNull()
+    })
+
+    it('zeigt eine nicht berechenbare Teilgröße kompakt statt eine falsche Zahl, mit der Begründung im Titel', () => {
+      const tree = new FaultTree()
+      const sonde = tree.create('sonde', { x: 10, y: 10 })
+      render(<FehlerbaumEditor tree={tree} probes={{
+        [sonde.id]: { failure: { value: 0.1 }, unavailability: { error: 'Nicht berechenbar – Reparaturrate fehlt.' } },
+      }} />)
+      expect(screen.getByText(/U ≈ n\. b\./)).toBeInTheDocument()
+      expect(screen.getByText('Nicht berechenbar – Reparaturrate fehlt.', { selector: 'title' })).toBeInTheDocument()
+    })
+
+    it('zeigt den Eingangs-Stub nicht mehr, sobald die Sonde verbunden ist -- die Oberfläche bietet gar nicht erst einen zweiten Eingang an', () => {
+      // Die Modellebene (exakt ein Eingang, Ablehnung eines zweiten) ist in
+      // model.test.ts abgedeckt; hier nur, dass die Oberfläche konsistent dazu den
+      // Eingangs-Stub entfernt statt ihn weiter als Ziel anzubieten.
+      const tree = new FaultTree()
+      const sonde = tree.create('sonde', { x: 10, y: 10 })
+      const eingang = tree.create('standardeingang', { x: 100, y: 100 })
+      tree.connect(eingang.id, sonde.id)
+      render(<FehlerbaumEditor tree={tree} />)
+      const sondeNode = screen.getByText('Sonde 1').closest('g')!
+      expect(sondeNode.querySelector('[data-stub=in]')).toBeNull()
+      expect(sondeNode.querySelector('[data-stub=out]')).not.toBeNull()
+    })
+  })
 })

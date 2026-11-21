@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Project } from '../core'
 import { appLogger } from '../debug/appLogger'
 import { calculateResults, formatValue, resultsKey, silBand, type Results, type Value } from './results'
@@ -7,7 +7,18 @@ import './ResultsPanel.css'
 function NumberValue({ result }: { result: Value }) {
   return result.error !== undefined ? <span className="result-error">{result.error}</span> : <span>{formatValue(result.value)}</span>
 }
-export function ResultsPanel({ project }: { project: Project }) {
+export interface ResultsPanelProps {
+  project: Project
+  /**
+   * Reports the current probe values (#45) and whether they are stale, so the
+   * Zwischenwert-Sonden on the canvas can show the same snapshot and the same
+   * Veraltet-Markierung as this panel, without each probe running its own
+   * calculation. `undefined` probes means "noch keine Berechnung" or a hard
+   * failure (same cases in which this panel itself shows no system values).
+   */
+  onResults?: (probes: Results['probes'] | undefined, stale: boolean) => void
+}
+export function ResultsPanel({ project, onResults }: ResultsPanelProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [height, setHeight] = useState(300)
   const [snapshot, setSnapshot] = useState<{ key: string; at: string; modified: string; t: number; tau: number; data: Results }>()
@@ -15,6 +26,7 @@ export function ResultsPanel({ project }: { project: Project }) {
   const key = resultsKey(project)
   const stale = snapshot !== undefined && snapshot.key !== key
   const data = snapshot?.data
+  useEffect(() => { onResults?.(data?.probes, stale) }, [data, stale, onResults])
   function calculate() {
     const context = { componentIds: [...new Set(Object.values(project.diagrams.fehlerbaum?.nodes ?? {}).flatMap(n => n.componentRef ? [n.componentRef] : []))], details: { modelKey: key, parameters: project.parameters } }
     appLogger.logAction('fault-tree-calculation-requested', context)

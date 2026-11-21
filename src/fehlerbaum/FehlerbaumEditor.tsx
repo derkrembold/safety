@@ -14,12 +14,13 @@ import {
   sizeOf,
   type CanvasItem,
 } from './geometry'
-import { Standardeingang, type ConnectError, type ElementKind, type FaultTree, type Point } from './model'
+import { Sonde, Standardeingang, type ConnectError, type ElementKind, type FaultTree, type Point } from './model'
 import { appLogger } from '../debug/appLogger'
 import { COMMENT_DRAG_VALUE, DRAG_MIME, Sidebar } from './Sidebar'
 import { ComponentParameters, ProjectParameterPanel } from './ParameterPanels'
 import { getComponent } from '../core/registry'
 import type { ComponentDefinition, Project, ProjectParameters } from '../project/types'
+import { formatValue, type ProbeResult, type Results } from './results'
 
 type StubKind = 'out' | 'in'
 
@@ -38,10 +39,15 @@ interface PendingConnection {
 const ERROR_TEXT: Record<ConnectError, string> = {
   'unknown-element': 'Das Element existiert nicht mehr.',
   'same-element': 'Ein Element kann nicht mit sich selbst verbunden werden.',
-  'no-inputs': 'Ein Standardeingang hat keine Eingänge.',
+  'no-inputs': 'Dieses Element nimmt keinen (weiteren) Eingang an.',
   'output-taken': 'Dieser Ausgang ist bereits mit einem anderen Element verbunden.',
   'already-connected': 'Diese Verbindung existiert bereits.',
   cycle: 'Die Verbindung würde einen Zyklus erzeugen.',
+}
+
+/** Kompakte Anzeige am Sonden-Element (#45); der volle Fehlertext steht im `<title>`. */
+function probeLine(label: string, result: ProbeResult[keyof ProbeResult]): string {
+  return `${label} ≈ ${result.error !== undefined ? 'n. b.' : formatValue(result.value)}`
 }
 
 /**
@@ -111,13 +117,17 @@ function editorAction(
   }
 }
 
-export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onParametersSave, results }: {
+export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onParametersSave, results, probes, probesStale }: {
   tree: FaultTree
   onChange?: (tree: FaultTree) => void
   project?: Project
   onComponentSave?: (component: ComponentDefinition) => void
   onParametersSave?: (parameters: ProjectParameters) => void
   results?: React.ReactNode
+  /** Zwischenwert-Sonden (#45): dieselbe Berechnung/Momentaufnahme wie der Ergebnisbereich
+   * aus #23, hier nur zum Anzeigen am jeweiligen Sonden-Element weitergegeben. */
+  probes?: Results['probes']
+  probesStale?: boolean
 }) {
   // Der Baum ist ein veränderbares Objekt; nach jeder Änderung neu zeichnen.
   const [revision, setRevision] = useState(0)
@@ -605,6 +615,24 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
                         <text className="ft-label" x={w + 10} y={h / 2} dominantBaseline="middle">
                           {element.label}
                         </text>
+                        {element instanceof Sonde && (() => {
+                          const probe = probes?.[element.id]
+                          const className = probe !== undefined && probesStale ? 'ft-probe-readout stale' : 'ft-probe-readout'
+                          const title = probe && (probe.failure.error ?? probe.unavailability.error)
+                          return (
+                            <g>
+                              {title && <title>{title}</title>}
+                              <text className={className} x={w + 10} y={h / 2 + 16}>
+                                {probe === undefined ? 'noch nicht berechnet' : probeLine('F(t)', probe.failure)}
+                              </text>
+                              {probe !== undefined && (
+                                <text className={className} x={w + 10} y={h / 2 + 30}>
+                                  {probeLine('U', probe.unavailability)}
+                                </text>
+                              )}
+                            </g>
+                          )
+                        })()}
                         <Stub
                           x={w / 2}
                           y={0}

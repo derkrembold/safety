@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   FaultTree,
   OderVerknuepfung,
+  Sonde,
   Standardeingang,
   UndVerknuepfung,
 } from './model'
@@ -46,6 +47,20 @@ describe('FaultTree', () => {
     expect(tree.connect(a.id, und.id).ok).toBe(true)
     expect(tree.connect(b.id, und.id).ok).toBe(true)
     expect(und.nodes.length).toBe(2)
+  })
+
+  it('erzeugt die Sonde (#45) als eigene Klasse mit genau einem Eingang', () => {
+    const tree = new FaultTree()
+    const sonde = tree.create('sonde', at)
+    expect(sonde).toBeInstanceOf(Sonde)
+    expect(sonde.label).toBe('Sonde 1')
+    const a = tree.create('standardeingang', at)
+    const b = tree.create('standardeingang', at)
+    expect(tree.connect(a.id, sonde.id)).toEqual({ ok: true })
+    // Ein zweiter Eingang wird abgelehnt, nicht stillschweigend als weiterer Eingang
+    // angenommen -- die Sonde ist reine Durchleitung, kein Gatter mit mehreren Eingängen.
+    expect(tree.connect(b.id, sonde.id)).toEqual({ ok: false, error: 'no-inputs' })
+    expect(sonde.nodes).toEqual([a])
   })
 
   it('lehnt ungültige Verbindungen ab', () => {
