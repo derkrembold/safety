@@ -172,6 +172,8 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
    * höchstens einmal auf die reale (konstante) Breite ein und ändert sich danach nicht mehr.
    */
   const [scrollbarSize, setScrollbarSize] = useState({ w: 0, h: 0 })
+  /** Höhe des Elementfelds (#42), per Regler einstellbar wie der Ergebnisbereich aus #23. */
+  const [canvasHeight, setCanvasHeight] = useState(560)
   const [measuredBounds, setMeasuredBounds] = useState<{ right: number; bottom: number }>()
   /** Im Browser gemessene Kommentarhöhen (umbrochener Text bzw. Bearbeitungsfeld) je Kennung. */
   const [commentHeights, setCommentHeights] = useState<ReadonlyMap<string, number>>(() => new Map())
@@ -576,7 +578,8 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
   return (
     <div className={results ? 'ft-editor with-results' : 'ft-editor'}>
       <div className="ft-canvas-column">
-        <div className="ft-canvas-frame">
+        <label className="ft-height-slider">Höhe Elementfeld <input type="range" min="200" max="1400" step="10" value={canvasHeight} onChange={(event) => setCanvasHeight(Number(event.target.value))} /> {canvasHeight} px</label>
+        <div className="ft-canvas-frame" style={{ height: canvasHeight }}>
           <div
             ref={canvasRef}
             role="region"

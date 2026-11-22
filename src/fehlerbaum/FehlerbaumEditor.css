@@ -59,9 +59,9 @@
 }
 
 .ft-canvas-frame {
+  /* Höhe kommt jetzt explizit vom Höhenregler (#42), nicht mehr von flex:1 -- dasselbe
+     Bedienmuster wie beim Ergebnisbereich aus #23 (.ft-height-slider). */
   position: relative;
-  flex: 1;
-  min-height: 0;
   min-width: 0;
 }
 

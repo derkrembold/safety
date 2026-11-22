@@ -636,4 +636,19 @@ describe('FehlerbaumEditor', () => {
       expect(sondeNode.querySelector('[data-stub=out]')).not.toBeNull()
     })
   })
+
+  describe('Höhe des Elementfelds (#42)', () => {
+    it('lässt sich per Regler einstellen, mit demselben Bedienmuster wie der Ergebnisbereich aus #23', () => {
+      render(<FehlerbaumEditor tree={new FaultTree()} />)
+      const slider = screen.getByRole('slider', { name: /Höhe Elementfeld/ })
+      // Dieselbe CSS-Klasse wie der Höhenregler des Ergebnisbereichs (#23) -- kein optisch
+      // ähnlicher, aber separat gepflegter Nachbau.
+      expect(slider.closest('.ft-height-slider')).not.toBeNull()
+      const frame = screen.getByRole('region', { name: 'Fehlerbaum-Zeichenfläche' }).closest('.ft-canvas-frame') as HTMLElement
+      expect(frame.style.height).toBe('560px')
+      fireEvent.change(slider, { target: { value: '900' } })
+      expect(slider).toHaveValue('900')
+      expect(frame.style.height).toBe('900px')
+    })
+  })
 })
