@@ -49,7 +49,7 @@ export function ResultsPanel({ project, onResults }: ResultsPanelProps) {
       <button type="button" onClick={() => { setCollapsed(false); calculate() }}>{stale ? 'Neu berechnen' : 'Berechnen'}</button>
       <span role="status">{stale ? 'Veraltet – Modell oder Parameter geändert.' : snapshot ? 'Berechnet für den angezeigten Modellstand.' : 'Noch keine Berechnung.'}</span>
     </div>
-    {!collapsed && <label className="results-height">Höhe Ergebnisbereich <input type="range" min="130" max="600" step="10" value={height} onChange={e => setHeight(Number(e.target.value))} /> {height} px</label>}
+    {!collapsed && <label className="ft-height-slider">Höhe Ergebnisbereich <input type="range" min="130" max="600" step="10" value={height} onChange={e => setHeight(Number(e.target.value))} /> {height} px</label>}
     {!collapsed && <div id="results-body" className="results-body" style={{height}}>
       {error && <p role="alert">{error}</p>}
       {!snapshot && !error && <p>„Berechnen“ ermittelt Systemwerte und minimale Ausfallkombinationen aus dem aktuellen Fehlerbaum.</p>}

@@ -59,9 +59,14 @@
 }
 
 .ft-canvas-frame {
+  /* Höhe kommt jetzt explizit vom Höhenregler (#42), nicht mehr von flex:1 -- dasselbe
+     Bedienmuster wie beim Ergebnisbereich aus #23 (.ft-height-slider). flex-shrink:0,
+     sonst drückt .ft-editor.with-results' feste Höhe das Feld in der echten App wieder
+     auf den übrigen Platz zusammen, der Regler hätte dann keine sichtbare Wirkung
+     (Codex-Review PR #50, mit echtem Chromium-Layout gemessen -- jsdom prüft nur den
+     gesetzten Style-Wert, nicht das tatsächliche Flex-Ergebnis, und hätte das nicht gefangen). */
   position: relative;
-  flex: 1;
-  min-height: 0;
+  flex-shrink: 0;
   min-width: 0;
 }
 

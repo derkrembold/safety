@@ -14,6 +14,6 @@
 .component-table-scroll{overflow:auto;max-height:240px}.results-panel table{width:100%;border-collapse:collapse;text-align:left}
 .results-panel td,.results-panel th{padding:7px;border:1px solid var(--border);min-width:80px;vertical-align:top}.results-panel caption{text-align:left;margin:8px 0}.results-panel small{overflow-wrap:anywhere;font-weight:normal}
 .results-panel{overflow-wrap:anywhere}
-.results-height{display:flex;align-items:center;gap:8px;padding:4px 12px;font-size:12px}.results-height input{max-width:160px}
+/* Geteilt mit dem Höhenregler des Elementfelds (#42), damit beide gleich aussehen/bedienen. */
+.ft-height-slider{display:flex;align-items:center;gap:8px;padding:4px 12px;font-size:12px}.ft-height-slider input{max-width:160px}
 .ft-editor.with-results{height:max(560px,calc(100vh - 170px));min-height:560px}
-.with-results .ft-canvas-frame{min-height:200px}
