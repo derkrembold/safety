@@ -20,16 +20,17 @@ function parseNumber(text: string): number {
 
 const numberError = 'Gib eine endliche Zahl größer als 0 ohne Tausendertrennzeichen ein. Bei Mehrdeutigkeit: 8760 oder 8,760e0.'
 
-function Field({ label, value, onChange, error }: {
+function Field({ label, value, onChange, error, title }: {
   label: string
   value: string
   onChange: (value: string) => void
   error?: string
+  title?: string
 }) {
   const id = useId()
   return (
     <div className="ft-parameter-field">
-      <label htmlFor={id}>{label}</label>
+      <label htmlFor={id} title={title}>{label}</label>
       <input
         id={id}
         value={value}
@@ -85,18 +86,18 @@ export function ComponentParameters({ component, occurrenceLabel, onSave }: {
   return (
     <form className="ft-parameters" aria-label="Komponenteneigenschaften" onSubmit={submit}>
       <h3>Komponente</h3>
-      <p>Identität <code>{component.id}</code>. Änderungen gelten für alle Vorkommen dieser Komponente in allen Reitern.</p>
+      <p title="Änderungen gelten für alle Vorkommen dieser Komponente in allen Reitern.">Identität <code>{component.id}</code></p>
       <Field label="Komponentenname" value={name} onChange={setName}
         error={submitted && !updated.name ? 'Gib einen Komponentennamen ein.' : undefined} />
       {occurrenceLabel !== component.name && (
         <p>Dieses Vorkommen hat die eigene Beschriftung „{occurrenceLabel}“. Du kannst sie per Doppelklick im Baum ändern.</p>
       )}
       <Field label="Ausfallrate λ (1/h)" value={failure} onChange={setFailure}
-        error={submitted && invalid('INVALID_FAILURE_RATE') ? numberError : undefined} />
-      <p>Dieselbe Ausfallrate wird als λ_DU für PFDavg verwendet.</p>
+        error={submitted && invalid('INVALID_FAILURE_RATE') ? numberError : undefined}
+        title="Dieselbe Ausfallrate wird als λ_DU für PFDavg verwendet." />
       <Field label="Reparaturrate μ (1/h, optional)" value={repair} onChange={setRepair}
-        error={submitted && invalid('INVALID_REPAIR_RATE') ? numberError : undefined} />
-      <p>Ohne Reparaturrate kann die Verfügbarkeit nicht berechnet werden.</p>
+        error={submitted && invalid('INVALID_REPAIR_RATE') ? numberError : undefined}
+        title="Ohne Reparaturrate kann die Verfügbarkeit nicht berechnet werden." />
       <Actions dirty={dirty} onCancel={reset} />
     </form>
   )
@@ -127,8 +128,7 @@ export function ProjectParameterPanel({ parameters, onSave }: {
 
   return (
     <form className="ft-parameters" aria-label="Projektparameter" onSubmit={submit}>
-      <h3>Projektparameter</h3>
-      <p>Diese Werte gelten für das gesamte Projekt. Gib Stunden ohne Tausendertrennzeichen ein, zum Beispiel 8760.</p>
+      <h3 title="Diese Werte gelten für das gesamte Projekt. Gib Stunden ohne Tausendertrennzeichen ein, zum Beispiel 8760.">Projektparameter</h3>
       <Field label="Missionsdauer t (h)" value={mission} onChange={setMission}
         error={submitted && issues.some((issue) => issue.code === 'INVALID_MISSION_TIME') ? numberError : undefined} />
       <Field label="Prüfintervall τ (h)" value={interval} onChange={setInterval}

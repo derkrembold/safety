@@ -295,20 +295,6 @@
   font-size: 14px;
 }
 
-.ft-hints {
-  font-size: 13px;
-  color: var(--text);
-}
-
-.ft-hints kbd {
-  padding: 1px 6px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--code-bg);
-  color: var(--text-h);
-  font: 12px var(--mono);
-}
-
 .ft-sidebar {
   width: 200px;
   flex-shrink: 0;

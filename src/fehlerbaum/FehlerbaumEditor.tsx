@@ -806,10 +806,6 @@ export function FehlerbaumEditor({ tree, onChange, project, onComponentSave, onP
             </div>
           )}
         </div>
-        <p className="ft-hints">
-          <kbd>Ziehen</kbd> verschieben · <kbd>Stub ziehen</kbd> verbinden ·{' '}
-          <kbd>Doppelklick</kbd> umbenennen · <kbd>Entf</kbd> löschen · <kbd>Esc</kbd> abwählen
-        </p>
         {results}
       </div>
       <div className="ft-side-column">
