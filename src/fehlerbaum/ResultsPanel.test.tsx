@@ -27,6 +27,12 @@ it('calculates, collapses and marks both system and component results stale afte
   await user.click(screen.getByRole('button',{name:'Ergebnisse aufklappen'}))
   expect(screen.getByRole('heading',{name:'Minimal Cut Sets (MCS)'})).toBeInTheDocument()
 })
+it('erklärt "Berechnen" als title-Tooltip am Button statt als Dauertext (#51)', () => {
+  render(<ResultsPanel project={sharedSensorProject()}/>)
+  expect(screen.queryByText(/ermittelt Systemwerte und minimale Ausfallkombinationen/)).toBeNull()
+  expect(screen.getByRole('button',{name:'Berechnen'})).toHaveAttribute(
+    'title', '„Berechnen“ ermittelt Systemwerte und minimale Ausfallkombinationen aus dem aktuellen Fehlerbaum.')
+})
 it('shows partial results and replaces them after an invalid model calculation', async () => {
   const p = sharedSensorProject(); p.components = {...p.components,[SENSOR]:{...p.components[SENSOR],repairRate:undefined}}
   const {rerender} = render(<ResultsPanel project={p}/> )

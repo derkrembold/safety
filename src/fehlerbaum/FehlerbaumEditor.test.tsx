@@ -651,4 +651,9 @@ describe('FehlerbaumEditor', () => {
       expect(frame.style.height).toBe('900px')
     })
   })
+
+  it('zeigt die Tastenkürzel-Hinweiszeile nicht mehr an -- dafür gibt es die vollständige Übersicht aus #20 (#51)', () => {
+    const { container } = render(<FehlerbaumEditor tree={new FaultTree()} />)
+    expect(container.querySelector('.ft-hints')).toBeNull()
+  })
 })
